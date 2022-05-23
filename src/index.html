@@ -1,0 +1,58 @@
+<head>
+<script>
+    var wSocket = new WebSocket("ws://"+window.location.hostname+"/:81");
+    wSocket.onopen = function(e) {
+        alert("[open] Connection established");
+        alert("Sending to server");
+        wSocket.send("My name is John");
+    };
+    wSocket.onmessage = function(e) {
+        var tag = document.getElementById("log");
+        var text = document.createElement("p");
+        text.innerHTML = "set ssid : "+e.data;
+        tag.appendChild(text);
+    }
+    function send(){
+        wSocket.send("aaaa");
+    }
+
+    wSocket.onerror = function(error) {
+        alert(`[error] ${error.message}`);
+    };
+</script>
+</head>
+<body>
+    <form action="/setssid"  method="post">
+        <label for="ssid">ssid:</label><br>
+        <input type="text" id="ssid" name="ssid" value="
+        
+        "><br>
+        <label for="password">password:</label><br>
+        <input type="text" id="password" name="password" value="
+        
+        "><br>
+        <label for="mqtt_address">mqtt_address:</label><br>
+        <input type="text" id="mqtt_address" name="mqtt_address" value="
+        
+        "><br>
+        <label for="mqtt_port">mqtt_port:</label><br>
+        <input type="text" id="mqtt_port" name="mqtt_port" value="
+        
+        "><br>
+        <label for="mqtt_id">mqtt_id:</label><br>
+        <input type="text" id="mqtt_id" name="mqtt_id" value="
+        
+        "><br>
+        <label for="mqtt_password">mqtt_password:</label><br>
+        <input type="text" id="mqtt_password" name="mqtt_password" value="
+        
+        "><br>
+        <input type="submit" value="Submit">
+    </form>
+	<form action="/reset">
+        <input type="submit" value="Reset">
+    </form>
+    <input type="button" value="send" onclick="send()" >
+</body>
+
+
