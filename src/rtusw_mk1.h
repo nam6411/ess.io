@@ -17,7 +17,7 @@ class RtuSwMk1  : public Device {
     public: 
 //        RtuSwMk1(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial *_serial, int _slaveID, int _numOfSW, ...);
         RtuSwMk1(PubSubClient *_mqttClient, ModbusMaster *_modbus, int _slaveID, int _numOfSW, ...);
-        bool switch_state[NUM_RTU_MK1_SW+1];
+        bool switch_state[NUM_RTU_MK1_SW+1] = {0,};
 
         bool getSwitchState(int num);
 

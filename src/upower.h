@@ -46,7 +46,7 @@ class Upower  : public Device {
         unsigned char getUpowerStateFrom(int addr, int size, uint16_t *buf);
         const char* device_domain = "upower";
     public: 
-        bool switch_state[NUM_OF_SWITCH];
+        bool switch_state[NUM_OF_SWITCH] = {0,};
 
 //        Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial *_serial);
         Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus);

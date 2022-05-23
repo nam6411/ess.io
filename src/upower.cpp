@@ -330,6 +330,8 @@ int Upower::update_switch(){
       switch_state[INVERTER] = modbus->getResponseBuffer(0) & (1 << 0);
     }
 
+    
+
     results[BYPASS] = modbus->readCoils(0x0104, 1);
     if(results[BYPASS] == modbus->ku8MBSuccess){
       switch_state[BYPASS] = modbus->getResponseBuffer(0) & (1 << 0);
@@ -347,7 +349,7 @@ int Upower::update_switch(){
       switch_state[STORAGE_MODE] = modbus->getResponseBuffer(0) == STORAGE_MODE_BCV;
     }
     
-    
+
     return results[BYPASS] | results[SOLAR_CHARGE] | results[GRID_CHARGE] | results[INVERTER] | results[STORAGE_MODE];
 }
 

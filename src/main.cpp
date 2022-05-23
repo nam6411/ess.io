@@ -42,11 +42,11 @@
 #include "ds1603da.h"
 
 #if defined(ESP8266)
-ESP8266WebServer server(80);
-String BOARD_NAME = "esp8266";
+	ESP8266WebServer server(80);
+	String BOARD_NAME = "esp8266";
 #elif defined(ESP32)
-WebServer server(80);
-String BOARD_NAME = "esp32";
+	WebServer server(80);
+	String BOARD_NAME = "esp32";
 #endif
 WebSocketsServer webSocket = WebSocketsServer(81);
 
@@ -113,21 +113,13 @@ void messageRouter(char* topic, byte* message, unsigned int length);
 int queueMover = -1;
 int queueInverter = -1;
 
-// typedef void (*RegistryList[])();
-// RegistryList Registries = {
-// 	updateStates,
-// 	pushMQTT,
-	
-// };
 Device* devices[10];
 int numOfDevice;
 
 RtuSwMk1* devRtuSwitch;
 Upower* devUpower;
+// RtuSwMk1* devUpower;
 
-
-//SoftwareSerial serial_13_11;
-//SoftwareSerial serial_5_16;
 SoftwareSerial serialUpower;
 SoftwareSerial serialSwitch;
 SoftwareSerial serialBms;
@@ -157,37 +149,27 @@ void modbusSwitchPreTransmission(){
 }
 
 
-#define INVERTER_BUTTON_PIN 15
-#define MOVER_BUTTON_PIN 14
 
 void IRAM_ATTR Ext_INVERTER_ISR(){
-  Serial.println("Inv Rising");
   long now = millis();
-  if(now - lastInverterButon < 100){
-	  Serial.println("Inv Rising skip");
-	  return;
+  if(now - lastInverterButon > 100){
+  	Serial.println("IR");
+  	lastInverterButon = now;
+  	queueInverter = 1;
   }
-  lastInverterButon = now;
-  bool curState = devUpower->switch_state[0];
-  bool newState = !curState;
-  Serial.printf("Inverter turn %s\n", newState?"ON":"OFF");
-  queueInverter = newState?1:0;
 }
 
 
 void IRAM_ATTR Ext_MOVER_ISR(){
-  Serial.println("Mover Rising");
   long now = millis();
-  if(now - lastMoverButon < 100){
-	  Serial.println("Mover Rising skip");
-	  return;
+  if(now - lastMoverButon > 100){
+  	Serial.println("MR");
+	lastMoverButon = now;
+	queueMover = 1;
   }
-  lastMoverButon = now;
-  bool curState = devRtuSwitch->getSwitchState(6);
-  bool newState = !curState;
-  Serial.printf("mover turn %s\n", newState?"ON":"OFF");
-  queueMover = newState?1:0;
 }
+
+
 
 
 void setup()
@@ -200,6 +182,9 @@ void setup()
 
 	pinMode(MOVER_BUTTON_PIN, INPUT_PULLUP);
 	pinMode(INVERTER_BUTTON_PIN, INPUT_PULLUP);
+
+	pinMode(INVERTER_STATE_PIN, OUTPUT);
+	pinMode(MOVER_STATE_PIN, OUTPUT);
 
 	attachInterrupt(MOVER_BUTTON_PIN, Ext_MOVER_ISR, FALLING);
 	attachInterrupt(INVERTER_BUTTON_PIN, Ext_INVERTER_ISR, FALLING);
@@ -234,27 +219,18 @@ void setup()
 
 	loop_count=0;
 
-  
-//  uint64_t macAddress = ESP.getEfuseMac();
-//  uint64_t macAddressTrunc = macAddress << 40;
-//  int chipID = macAddressTrunc >> 40;
-//  sprintf(, "%06X", chipID);
-
 	#if defined(ESP8266)
-	sprintf(device_id, "%06X", ESP.getChipId());
+		sprintf(device_id, "%06X", ESP.getChipId());
 	#elif defined(ESP32)
-	uint32_t id = 0;
-	for(int i=0; i<17; i=i+8) {
-	id |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i;
-	}
-	sprintf(device_id, "%06X", id);
+		uint32_t id = 0;
+		for(int i=0; i<17; i=i+8) {
+		id |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i;
+		}
+		sprintf(device_id, "%06X", id);
 	#endif
 
 	Serial.println(device_id);
 	
-	
-
-	// Serial.println("set mqtt");
 
 	webSocket.onEvent(webSocketEvent);
 	webSocket.begin();
@@ -262,7 +238,6 @@ void setup()
 	Serial.println("set websocket");
 
 
-	// establish_connections();
 
 	Serial.println("Start Devices initialize");
 	#if defined(ESP8266)
@@ -270,7 +245,8 @@ void setup()
 	serialBms.begin(9600, SWSERIAL_8N1, 5, 16, false, 256);//bms 라인 : 18, 19
 	// serialSwitch.begin(9600, SWSERIAL_8N1, 13, 12, false, 256);//sw 라인 : 16, 17
 	#elif defined(ESP32)
-	serialUpower.begin(115200, SWSERIAL_8N1, 22, 23, false, 256);//upower 라인 : 22, 23
+	// serialUpower.begin(115200, SWSERIAL_8N1, 22, 23, false, 256);//upower 라인 : 22, 23
+	serialUpower.begin(9600, SWSERIAL_8N1, 22, 23, false, 256);//sw 라인 : 16, 17
 	serialBms.begin(9600, SWSERIAL_8N1, 16, 17, false, 256);//bms 라인 : 18, 19
 	serialSwitch.begin(9600, SWSERIAL_8N1, 18, 19, false, 256);//sw 라인 : 16, 17
 	#endif
@@ -293,14 +269,14 @@ void setup()
 	numOfDevice=0;
   
 	devUpower = new Upower(&mqttClient, &modbusUpower /*&modbus, &serialUpower*/);
+	// devUpower = new RtuSwMk1(&mqttClient, &modbusUpower,3, 4, "Equalizer", "Plumbing Drain", "Tank Drain", "Whale to Fill");
+	// devUpower = new Upower(&mqttClient, &modbusUpower /*&modbus, &serialUpower*/);
 	devRtuSwitch = new RtuSwMk1(&mqttClient, &modbusSwitch , /*&modbus, &serialSwitch, */ 0, 8, "Equalizer", "Plumbing Drain", "Tank Drain", "Whale to Fill", "Aroundview", "Mover", "12v Charger");
 
 	devices[numOfDevice++] = devUpower;
 	devices[numOfDevice++] = new Jbdbms(&mqttClient, &serialBms,0, 16);
   	devices[numOfDevice++] = devRtuSwitch;
 	setup_mqtt();
-//   Serial.printf("modbusUpower addr : %p\n", &modbusUpower);
-//   Serial.printf("modbusSwitch addr : %p\n", &modbusSwitch);
 }
 
 
@@ -310,6 +286,10 @@ void updateStates(int deviceNumber){
 	devices[deviceNumber]->update_switch();
 	Serial.printf("device %d - data update\n", deviceNumber);
 	devices[deviceNumber]->update_data();
+	
+	Serial.printf("Inverter : %d, Mover : %d \n", devUpower->switch_state[0], devRtuSwitch->getSwitchState(6));
+    digitalWrite(INVERTER_STATE_PIN, devUpower->switch_state[0] == 1 ? HIGH:LOW);
+    digitalWrite(MOVER_STATE_PIN, devRtuSwitch->getSwitchState(6) == 1 ? HIGH:LOW);
 
 
 }
@@ -343,10 +323,6 @@ int setup_wifi() {
 
 	int count = 0;
 	
-	// char ap_ssid[32];
-	// char ap_passwd[32];
-	
-	// if(getWifiInfo(ap_ssid, ap_passwd) == 0){
 	if(strlen(ssid) > 0 && strlen(ssid_pw) > 0){
 		while (WiFi.status() != WL_CONNECTED) {
 			WiFi.begin(ssid, ssid_pw);	
@@ -410,13 +386,12 @@ void setup_mqtt() {
 		return;
 	}
 
-  Serial.printf("MQTT server @%s:%d\n", mqtt_addr, atoi(mqtt_port));
+	Serial.printf("MQTT server @%s:%d\n", mqtt_addr, atoi(mqtt_port));
 	mqttClient.setServer(mqtt_addr, atoi(mqtt_port));
 
-	// while (!mqttClient.connected()) {
-		Serial.println("Attempting MQTT connection...");
-		char mqtt_client_name[20];
-		sprintf(mqtt_client_name, "%s-%s", MQTT_CLIENT_NAME, device_id);
+	Serial.println("Attempting MQTT connection...");
+	char mqtt_client_name[20];
+	sprintf(mqtt_client_name, "%s-%s", MQTT_CLIENT_NAME, device_id);
     Serial.println(mqtt_client_name);
 		
     Serial.printf("MQTT name : %s account : %s:%s\n", mqtt_client_name, mqtt_client_id, mqtt_client_pw);
@@ -436,11 +411,7 @@ void setup_mqtt() {
 		}else {
 			Serial.printf("failed, rc= %d, try again in 5 seconds\n", mqttClient.state());
 			retry_count++;
-			// if(retry_count > 20){
-			// 	resetFunc();
-			// }
 		}
-	// }
 }
 
 void device_cycle(int seq) {
@@ -462,19 +433,8 @@ void device_cycle(int seq) {
 
 bool detectMultiplePress(unsigned long* releasedTime, unsigned long pressedTimes[], int* pressedIndex, boolean curState){
   bool newState = curState;
-//  int buttonState = digitalRead(BUTTON_PIN);
-//    if(*lastButtonState == HIGH && buttonState == LOW){
-//      Serial.printf("pressed\n");
-//      *pressedTime = millis();
-//    }
-//    
-//    if(*lastButtonState == LOW && buttonState == HIGH) {
-//      Serial.printf("released\n");
-//      *releasedTime = millis();
       pressedTimes[*pressedIndex] = *releasedTime ;
       *pressedIndex = (*pressedIndex+1)%5;
-//    }
-//    *lastButtonState = buttonState;
 
     long now = millis();
     int validCount = 0;
@@ -508,45 +468,23 @@ void loop(){
 		lastMsg = now;
 		device_cycle(loop_count++);
 		loop_count = loop_count%numOfDevice;
-
-		// if(WiFi.status() == WL_CONNECTED){
-
-		// 	if(mqttClient.connected()){
-		// 		device_cycle(loop_count++);
-		// 		loop_count = loop_count%numOfDevice;
-		// 	}else{
-		// 		setup_mqtt();
-		// 	}
-			
-		// }
 	}
 
+	if(queueMover > 0){
+		bool curState = devRtuSwitch->getSwitchState(6);
+		bool newState = !curState;
+		Serial.printf("mover turn %s\n", newState?"ON":"OFF");
+		devRtuSwitch->change_switch("06", newState==1?"ON":"OFF");
+		queueMover = 0;
+	}
+	if(queueInverter > 0){
+		bool curState = devUpower->switch_state[0];
+		bool newState = !curState;
+		Serial.printf("Inverter turn %s\n", newState?"ON":"OFF");
+		devUpower->change_switch("inverter", newState==1?"ON":"OFF");
+		queueInverter = 0;
+	}
 	
-			
-	if(queueMover > -1){
-		// messageRouter(moverPath, (byte*)(queueMover==1?"ON\0":"OFF\0"), queueMover==1?2:3);
-		devRtuSwitch->change_switch("06", queueMover==1?"ON":"OFF");
-		queueMover = -1;
-	}
-	if(queueInverter > -1){
-		// messageRouter(moverPath, (byte*)(queueMover==1?"ON\0":"OFF\0"), queueMover==1?2:3);
-		// devUpower->change_switch("06", queueMover==1?"ON":"OFF");
-		devUpower->change_switch("inverter", queueInverter==1?"ON":"OFF");
-		queueInverter = -1;
-	}
-//	if (now - lastMsg2 > 10) {
-//		lastMsg2 = now;
-//    bool inverter_newstate = detectMultiplePress(INVERTER_BUTTON_PIN, &lastInverterButtonState, &inverterPressedTime, &inverterReleasedTime, inverterPressedTimes, &inverterPressedIndex, devUpower->switch_state[0]);
-//    if(inverter_newstate != devUpower->switch_state[0]){
-//      Serial.printf("inverter turn %s\n", inverter_newstate?"ON":"OFF");
-//      devUpower->change_switch("inverter", inverter_newstate?"ON":"OFF");
-//    }
-//    bool mover_newstate = detectMultiplePress(MOVER_BUTTON_PIN, &lastMoverButtonState, &moverPressedTime, &moverReleasedTime, moverPressedTimes, &moverPressedIndex, devRtuSwitch->switch_state[4]);
-//    if(mover_newstate != devRtuSwitch->switch_state[4]){
-//      Serial.printf("mover turn %s\n", mover_newstate?"ON":"OFF");
-//      devRtuSwitch->change_switch("15", mover_newstate?"ON":"OFF");
-//    }
-//	}
 }
 
 
@@ -554,18 +492,11 @@ void loop(){
 
 
 void messageRouter(char* topic, byte* rawMessage, unsigned int length) {
-  char message[20]= {0,};
-  for(int i = 0 ; i < length ; i++){
-    message[i] = rawMessage[i];
-  }
-  Serial.printf("Message arrived on topic: %s Message: %s", topic, message);
-  
-//   if(strcmp(inverterPath, topic)){
-//     inverterState = strcmp(topic, "ON");
-//   }
-//   if(strcmp(moverPath, topic)){
-//     moverState = strcmp(topic, "ON");
-//   }
+	char message[20]= {0,};
+	for(int i = 0 ; i < length ; i++){
+		message[i] = rawMessage[i];
+	}
+	Serial.printf("Message arrived on topic: %s Message: %s", topic, message);
   
 	const char* token = "/";
 
@@ -574,7 +505,7 @@ void messageRouter(char* topic, byte* rawMessage, unsigned int length) {
 	char* device_domain = strtok(NULL,token);//upower
 	char* switch_name = strtok(NULL,token);//inverter
 
-  Serial.printf("message incomming : %s\n", message);
+	Serial.printf("message incomming : %s\n", message);
 
 	for(int i = 0 ; i < numOfDevice; i++){
 
@@ -605,34 +536,34 @@ void webRootHandler(){
 void webSettingsHandler() {
 	String buf = "<head> \
 <script> \
-    var wSocket = new WebSocket(\"ws://\"+window.location.hostname+\":81/\"); \
-    wSocket.onopen = function(e) { \
-        alert(\"[open] Connection established\"); \
-        alert(\"Sending to server\"); \
-        wSocket.send(\"My name is John\"); \
-    }; \
-    wSocket.onmessage = function(e) { \
-        var tag = document.getElementById(\"log\"); \
-        var text = document.createElement(\"p\"); \
-        text.innerHTML = \"set ssid : \"+e.data; \
-        tag.appendChild(text); \
-    }; \
-    function send(){ \
-        wSocket.send(\"aaaa\"); \
-    }; \
-    wSocket.onerror = function(error) { \
-        alert(`[error] ${error.message}`); \
-    }; \
+	var wSocket = new WebSocket(\"ws://\"+window.location.hostname+\":81/\"); \
+	wSocket.onopen = function(e) { \
+		alert(\"[open] Connection established\"); \
+		alert(\"Sending to server\"); \
+		wSocket.send(\"My name is John\"); \
+	}; \
+	wSocket.onmessage = function(e) { \
+		var tag = document.getElementById(\"log\"); \
+		var text = document.createElement(\"p\"); \
+		text.innerHTML = \"set ssid : \"+e.data; \
+		tag.appendChild(text); \
+	}; \
+	function send(){ \
+		wSocket.send(\"aaaa\"); \
+	}; \
+	wSocket.onerror = function(error) { \
+		alert(`[error] ${error.message}`); \
+	}; \
 </script> \
 </head> \
 <body> \
-    <form action=\"/setssid\"  method=\"post\"> \
-        <label for=\"ssid\">ssid:</label><br> \
-        <input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"";
+	<form action=\"/setssid\"  method=\"post\"> \
+		<label for=\"ssid\">ssid:</label><br> \
+		<input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"";
 	buf.concat(ssid);
 	buf.concat("\"><br> \
-        <label for=\"password\">password:</label><br> \
-        <input type=\"text\" id=\"password\" name=\"password\" value=\"");
+		<label for=\"password\">password:</label><br> \
+		<input type=\"text\" id=\"password\" name=\"password\" value=\"");
 	
 	buf.concat(ssid_pw);
 
@@ -653,11 +584,11 @@ void webSettingsHandler() {
 	<input type=\"text\" id=\"mqtt_password\" name=\"mqtt_password\" value=\"");
 	buf.concat(mqtt_client_pw);
 	buf.concat("\"><br> \
-        <input type=\"submit\" value=\"Submit\"> \
-    </form> \
+		<input type=\"submit\" value=\"Submit\"> \
+	</form> \
 	<form action=\"/reset\"> \
-        <input type=\"submit\" value=\"Reset\"> \
-    </form> \
+		<input type=\"submit\" value=\"Reset\"> \
+	</form> \
 	<input type=\"button\" value=\"send\" onclick=\"send()\" > \
 </body>");
 
@@ -697,9 +628,6 @@ void handleSetSSID() {
 	strcpy(mqtt_port_, server.arg("mqtt_port").c_str());
 	strcpy(mqtt_id, server.arg("mqtt_id").c_str());
 	strcpy(mqtt_password, server.arg("mqtt_password").c_str());
-
-	// ssid[strlen(ssid)] = '\0';
-	// password[strlen(password)] = '\0';
 
 	Serial.println(ssid);
 	Serial.println(password);

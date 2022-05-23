@@ -28,7 +28,6 @@ bool Device::mqtt_publish(String topic, String message, bool retain){
     return mqttClient->publish((char*)topic.c_str(), (char*)message.c_str(), retain);
   }else{
     Serial.printf("mqtt not connected\n");
-    Serial.printf("mqtt not connected\n");
     ESP.restart();
     return 0;
   }

@@ -8,7 +8,6 @@
 class RtuSwMk2  : public Device { 
     private: 
         const char* device_domain = "rtusw_mk2";
-        bool switch_state[NUM_RTU_MK2_SW+1];
 
         int slaveID;
         int numOfSW;
@@ -16,7 +15,8 @@ class RtuSwMk2  : public Device {
         char* role[NUM_RTU_MK2_SW+1];
         bool isSuccess;
     public: 
-        RtuSwMk2(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial *_serial, int _slaveID, int _numOfSW, ...);
+        RtuSwMk2(PubSubClient *_mqttClient, ModbusMaster *_modbus, /*SoftwareSerial *_serial, */int _slaveID, int _numOfSW, ...);
+        bool switch_state[NUM_RTU_MK2_SW+1];
         
         virtual int publish_switch();
         virtual int publish_data();
