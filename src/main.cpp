@@ -151,22 +151,21 @@ void modbusSwitchPreTransmission(){
 
 
 void IRAM_ATTR Ext_INVERTER_ISR(){
-  long now = millis();
-  if(now - lastInverterButon > 100){
-  	Serial.println("IR");
-  	lastInverterButon = now;
-  	queueInverter = 1;
-  }
+  	// long now = millis();
+  	Serial.printf("IR : %d\n", queueInverter);
+  	// lastInverterButon = now;
+  	queueInverter++;
+//   if(now - lastInverterButon > 100){
+//   }
 }
 
-
 void IRAM_ATTR Ext_MOVER_ISR(){
-  long now = millis();
-  if(now - lastMoverButon > 100){
-  	Serial.println("MR");
-	lastMoverButon = now;
-	queueMover = 1;
-  }
+	// long now = millis();
+	Serial.printf("MR : %d\n", queueMover);
+	// lastMoverButon = now;
+	queueMover++;
+//   if(now - lastMoverButon > 100){
+//   }
 }
 
 
@@ -464,26 +463,33 @@ void loop(){
 	
 	long now = millis();
   
-	if (now - lastMsg > 2000) {
-		lastMsg = now;
-		device_cycle(loop_count++);
-		loop_count = loop_count%numOfDevice;
-	}
-
-	if(queueMover > 0){
+	if(queueMover > 5){
 		bool curState = devRtuSwitch->getSwitchState(6);
 		bool newState = !curState;
 		Serial.printf("mover turn %s\n", newState?"ON":"OFF");
 		devRtuSwitch->change_switch("06", newState==1?"ON":"OFF");
 		queueMover = 0;
+		queueInverter = 0;
 	}
-	if(queueInverter > 0){
+	if(queueInverter > 5){
 		bool curState = devUpower->switch_state[0];
 		bool newState = !curState;
 		Serial.printf("Inverter turn %s\n", newState?"ON":"OFF");
 		devUpower->change_switch("inverter", newState==1?"ON":"OFF");
 		queueInverter = 0;
+		queueMover = 0;
 	}
+
+	if (now - lastMsg > 2000) {
+		lastMsg = now;
+		printf("set 0 : %d, %d\n",queueMover, queueInverter);
+		queueMover = 0;
+		queueInverter = 0;
+		device_cycle(loop_count++);
+		loop_count = loop_count%numOfDevice;
+		
+	}
+
 	
 }
 
