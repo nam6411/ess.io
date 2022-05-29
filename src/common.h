@@ -16,6 +16,8 @@
 
 #define INVERTER_BUTTON_PIN 12
 #define MOVER_BUTTON_PIN 14
+#define LONG_PRESS_THRESHOLD 3000
+
 
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 

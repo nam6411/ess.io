@@ -185,8 +185,8 @@ void setup()
 	pinMode(INVERTER_STATE_PIN, OUTPUT);
 	pinMode(MOVER_STATE_PIN, OUTPUT);
 
-	attachInterrupt(MOVER_BUTTON_PIN, Ext_MOVER_ISR, FALLING);
-	attachInterrupt(INVERTER_BUTTON_PIN, Ext_INVERTER_ISR, FALLING);
+	// attachInterrupt(MOVER_BUTTON_PIN, Ext_MOVER_ISR, FALLING);
+	// attachInterrupt(INVERTER_BUTTON_PIN, Ext_INVERTER_ISR, FALLING);
 
 	
 	mqttClient.setBufferSize(MQTT_MAX_PACKET_SIZE);
@@ -455,6 +455,12 @@ bool detectMultiplePress(unsigned long* releasedTime, unsigned long pressedTimes
     return newState;
 }
 
+
+long inv_pressed_time = -1;//전역
+long mover_pressed_time = -1;//전역
+
+
+
 void loop(){
   
 	server.handleClient();
@@ -462,6 +468,49 @@ void loop(){
 	webSocket.loop();
 	
 	long now = millis();
+
+	int cur_inverter_value = digitalRead(INVERTER_BUTTON_PIN);
+
+	if(cur_inverter_value == HIGH){
+		if(inv_pressed_time < 0){
+			inv_pressed_time = now;
+		}
+		
+		if(inv_pressed_time > 0 && (now - inv_pressed_time) > LONG_PRESS_THRESHOLD){
+			//롱프레스 감지
+			bool curState = devUpower->switch_state[0];
+			bool newState = !curState;
+			Serial.printf("Inverter turn %s\n", newState?"ON":"OFF");
+			devUpower->change_switch("inverter", newState==1?"ON":"OFF");
+			inv_pressed_time = -1;
+		}
+	}else{
+		inv_pressed_time = -1;
+	}
+	
+
+	int cur_mover_value = digitalRead(MOVER_BUTTON_PIN);
+
+	if(cur_mover_value == HIGH){
+		if(mover_pressed_time < 0){
+			mover_pressed_time = now;
+		}
+		
+		if(mover_pressed_time > 0 && (now - mover_pressed_time) > LONG_PRESS_THRESHOLD){
+			//롱프레스 감지
+			bool curState = devRtuSwitch->getSwitchState(6);
+			bool newState = !curState;
+			Serial.printf("mover turn %s\n", newState?"ON":"OFF");
+			devRtuSwitch->change_switch("06", newState==1?"ON":"OFF");
+			mover_pressed_time = -1;
+		}
+	}else{
+		mover_pressed_time = -1;
+	}
+	
+
+
+
   
 	if(queueMover > 5){
 		bool curState = devRtuSwitch->getSwitchState(6);
