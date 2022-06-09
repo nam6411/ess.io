@@ -245,7 +245,7 @@ void setup()
 	// serialSwitch.begin(9600, SWSERIAL_8N1, 13, 12, false, 256);//sw 라인 : 16, 17
 	#elif defined(ESP32)
 	// serialUpower.begin(115200, SWSERIAL_8N1, 22, 23, false, 256);//upower 라인 : 22, 23
-	serialUpower.begin(9600, SWSERIAL_8N1, 22, 23, false, 256);//sw 라인 : 16, 17
+	serialUpower.begin(115200, SWSERIAL_8N1, 22, 23, false, 256);//sw 라인 : 16, 17
 	serialBms.begin(9600, SWSERIAL_8N1, 16, 17, false, 256);//bms 라인 : 18, 19
 	serialSwitch.begin(9600, SWSERIAL_8N1, 18, 19, false, 256);//sw 라인 : 16, 17
 	#endif
