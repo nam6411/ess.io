@@ -12,9 +12,9 @@ Upower::Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus/*, SoftwareSeria
   printf("modbus : %p", modbus);
   subscribe_size = 4 ;
 	subscribe_list[0] = (char*)"homeassistant/switch/upower/inverter/set";
-	subscribe_list[1] = (char*)"homeassistant/switch/upower/solar/set";
-	subscribe_list[2] = (char*)"homeassistant/switch/upower/grid/set";
-	subscribe_list[3] = (char*)"homeassistant/switch/upower/bypassoff/set";
+	subscribe_list[1] = (char*)"homeassistant/switch/upower/solar_charge/set";
+	subscribe_list[2] = (char*)"homeassistant/switch/upower/grid_charge/set";
+	subscribe_list[3] = (char*)"homeassistant/switch/upower/gridout_prio/set";
 	//subscribe_list[4];' = (char*)"homeassistant/switch/upower/storage/set";
   // configuration();
 
@@ -31,7 +31,7 @@ int Upower::setup_entity(){
 	mqtt_publish ("homeassistant/switch/upower/inverter/config", "");
 	mqtt_publish ("homeassistant/switch/upower/grid/config", "");
 	mqtt_publish ("homeassistant/switch/upower/solar/config", "");
-	mqtt_publish ("homeassistant/switch/upower/bypassoff/config", "");
+	mqtt_publish ("homeassistant/switch/upower/bypass/config", "");
 // mqtt_publish ("homeassistant/switch/upower/storage/config", "");
 
 	mqtt_publish ("homeassistant/sensor/upower/utility_charging_current/config", "");
@@ -60,9 +60,9 @@ int Upower::setup_entity(){
 
   //remove lagacy
   mqtt_publish ("homeassistant/switch/epever/inverter/config", "");
-  mqtt_publish ("homeassistant/switch/epever/grid/config", "");
-  mqtt_publish ("homeassistant/switch/epever/solar/config", "");
-  mqtt_publish ("homeassistant/switch/epever/bypassoff/config", "");
+  mqtt_publish ("homeassistant/switch/epever/grid_charge/config", "");
+  mqtt_publish ("homeassistant/switch/epever/solar_charge/config", "");
+  mqtt_publish ("homeassistant/switch/epever/gridout_prio/config", "");
   mqtt_publish ("homeassistant/sensor/epever/utility_charging_current/config", "");
   mqtt_publish ("homeassistant/sensor/epever/utility_charging_voltage/config", "");
   mqtt_publish ("homeassistant/sensor/epever/utility_charging_wattage/config", "");
@@ -90,47 +90,47 @@ int Upower::setup_entity(){
 
 
   mqtt_publish ("homeassistant/switch/upower/inverter/config", assemble_discover_switch_message("isw", "Inverter", "homeassistant/switch/upower/inverter/state", "homeassistant/switch/upower/inverter/set"), true);
-	mqtt_publish ("homeassistant/switch/upower/solar/config", assemble_discover_switch_message("ssw", "Solar Charge", "homeassistant/switch/upower/solar/state", "homeassistant/switch/upower/solar/set"), true);
-	mqtt_publish ("homeassistant/switch/upower/grid/config", assemble_discover_switch_message("gsw", "Grid Charge", "homeassistant/switch/upower/grid/state", "homeassistant/switch/upower/grid/set"), true);
-	mqtt_publish ("homeassistant/switch/upower/bypassoff/config", assemble_discover_switch_message("bsw", "Bypass Off", "homeassistant/switch/upower/bypassoff/state", "homeassistant/switch/upower/bypassoff/set"), true);
+	mqtt_publish ("homeassistant/switch/upower/solar_charge/config", assemble_discover_switch_message("ssw", "Solar Charge", "homeassistant/switch/upower/solar_charge/state", "homeassistant/switch/upower/solar_charge/set"), true);
+	mqtt_publish ("homeassistant/switch/upower/grid_charge/config", assemble_discover_switch_message("gsw", "Grid Charge", "homeassistant/switch/upower/grid_charge/state", "homeassistant/switch/upower/grid_charge/set"), true);
+	mqtt_publish ("homeassistant/switch/upower/gridout_prio/config", assemble_discover_switch_message("bsw", "Grid Output Priority", "homeassistant/switch/upower/gridout_prio/state", "homeassistant/switch/upower/gridout_prio/set"), true);
 	//mqtt_publish ("homeassistant/switch/upower/storage/config", assemble_discover_switch_message("stsw", "Storage Mode", "homeassistant/switch/upower/storage/state", "homeassistant/switch/upower/storage/set"), true);
   
   mqtt_publish ("homeassistant/sensor/upower/grid_in_current/config", assemble_discover_sensor_message("gic", "Grid In Current", "A", "energy", "homeassistant/sensor/upower/grid/state", "inCurrent"), true);
   mqtt_publish ("homeassistant/sensor/upower/grid_in_wattage/config", assemble_discover_sensor_message("giw", "Grid In Wattage", "W", "energy", "homeassistant/sensor/upower/grid/state", "inWattage"), true);	
 	mqtt_publish ("homeassistant/sensor/upower/grid_in_voltage/config", assemble_discover_sensor_message("giv", "Grid In Voltage", "V", "energy", "homeassistant/sensor/upower/grid/state", "inVoltage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/grid_out_current/config", assemble_discover_sensor_message("goc", "Grid Out Current", "A", "energy", "homeassistant/sensor/upower/grid/state", "outCurrent"), true);
-	mqtt_publish ("homeassistant/sensor/upower/grid_out_wattage/config", assemble_discover_sensor_message("gow", "Grid Out Wattage", "W", "energy", "homeassistant/sensor/upower/grid/state", "outWattage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/grid_out_voltage/config", assemble_discover_sensor_message("gov", "Grid Out Voltage", "V", "energy", "homeassistant/sensor/upower/grid/state", "outVoltage"), true);
-	mqtt_publish ("homeassistant/sensor/upower/grid_out_accumulate/config", assemble_discover_sensor_message("goa", "Grid Out Accumulate", "Kw", "energy", "homeassistant/sensor/upower/grid/state", "accumulate"), true);
-  mqtt_publish ("homeassistant/sensor/upower/grid_temperature/config", assemble_discover_sensor_message("got", "Grid Temperature", "℃", "energy", "homeassistant/sensor/upower/grid/state", "temperature"), true);
+  mqtt_publish ("homeassistant/sensor/upower/grid_charge_current/config", assemble_discover_sensor_message("goc", "Grid Out Current", "A", "energy", "homeassistant/sensor/upower/grid/state", "outCurrent"), true);
+	mqtt_publish ("homeassistant/sensor/upower/grid_charge_wattage/config", assemble_discover_sensor_message("gow", "Grid Out Wattage", "W", "energy", "homeassistant/sensor/upower/grid/state", "outWattage"), true);
+  mqtt_publish ("homeassistant/sensor/upower/grid_charge_voltage/config", assemble_discover_sensor_message("gov", "Grid Out Voltage", "V", "energy", "homeassistant/sensor/upower/grid/state", "outVoltage"), true);
+	mqtt_publish ("homeassistant/sensor/upower/grid_charge_accumulate/config", assemble_discover_sensor_message("goa", "Grid Out Accumulate", "kWh", "energy", "homeassistant/sensor/upower/grid/state", "accumulate"), true);
+  mqtt_publish ("homeassistant/sensor/upower/grid_temperature/config", assemble_discover_sensor_message("got", "Grid Temperature", "℃", "temperature", "homeassistant/sensor/upower/grid/state", "temperature"), true);
   mqtt_publish ("homeassistant/sensor/upower/pv_in_voltage/config", assemble_discover_sensor_message("piv", "PV In Voltage", "V", "energy", "homeassistant/sensor/upower/pv/state", "inVoltage"), true);
   mqtt_publish ("homeassistant/sensor/upower/pv_in_current/config", assemble_discover_sensor_message("pic", "PV In Current", "A", "energy", "homeassistant/sensor/upower/pv/state", "inCurrent"), true);
   mqtt_publish ("homeassistant/sensor/upower/pv_in_wattage/config", assemble_discover_sensor_message("piw", "PV In Wattage", "W", "energy", "homeassistant/sensor/upower/pv/state", "inWattage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_out_voltage/config", assemble_discover_sensor_message("pov", "PV Out Voltage", "V", "energy", "homeassistant/sensor/upower/pv/state", "outVoltage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_out_current/config", assemble_discover_sensor_message("poc", "PV Out Current", "A", "energy", "homeassistant/sensor/upower/pv/state", "outCurrent"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_out_wattage/config", assemble_discover_sensor_message("pow", "PV Out Wattage", "W", "energy", "homeassistant/sensor/upower/pv/state", "outWattage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_out_accumulate/config", assemble_discover_sensor_message("poa", "PV Out Accumulate", "Kw", "energy", "homeassistant/sensor/upower/pv/state", "accumulate"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_temperature/config", assemble_discover_sensor_message("pot", "PV Temperature", "℃", "energy", "homeassistant/sensor/upower/pv/state", "temperature"), true);
+  mqtt_publish ("homeassistant/sensor/upower/pv_charge_voltage/config", assemble_discover_sensor_message("pov", "PV Out Voltage", "V", "energy", "homeassistant/sensor/upower/pv/state", "outVoltage"), true);
+  mqtt_publish ("homeassistant/sensor/upower/pv_charge_current/config", assemble_discover_sensor_message("poc", "PV Out Current", "A", "energy", "homeassistant/sensor/upower/pv/state", "outCurrent"), true);
+  mqtt_publish ("homeassistant/sensor/upower/pv_charge_wattage/config", assemble_discover_sensor_message("pow", "PV Out Wattage", "W", "energy", "homeassistant/sensor/upower/pv/state", "outWattage"), true);
+  mqtt_publish ("homeassistant/sensor/upower/pv_charge_accumulate/config", assemble_discover_sensor_message("poa", "PV Out Accumulate", "kWh", "energy", "homeassistant/sensor/upower/pv/state", "accumulate"), true);
+  mqtt_publish ("homeassistant/sensor/upower/pv_temperature/config", assemble_discover_sensor_message("pot", "PV Temperature", "℃", "temperature", "homeassistant/sensor/upower/pv/state", "temperature"), true);
 	mqtt_publish ("homeassistant/sensor/upower/inverter_in_voltage/config", assemble_discover_sensor_message("iiv", "Inverter In Voltage", "V", "energy", "homeassistant/sensor/upower/inverter/state", "inVoltage"), true);
   mqtt_publish ("homeassistant/sensor/upower/inverter_out_voltage/config", assemble_discover_sensor_message("iov", "Inverter Out Voltage", "V", "energy", "homeassistant/sensor/upower/inverter/state", "outVoltage"), true);
   mqtt_publish ("homeassistant/sensor/upower/inverter_out_current/config", assemble_discover_sensor_message("ioc", "Inverter Out Current", "A", "energy", "homeassistant/sensor/upower/inverter/state", "outCurrent"), true);
   mqtt_publish ("homeassistant/sensor/upower/inverter_out_wattage/config", assemble_discover_sensor_message("iow", "Inverter Out Wattage", "W", "energy", "homeassistant/sensor/upower/inverter/state", "outWattage"), true);
   mqtt_publish ("homeassistant/sensor/upower/inverter_out_frequency/config", assemble_discover_sensor_message("iof", "Inverter Out Frequency", "Hz", "energy", "homeassistant/sensor/upower/inverter/state", "outFrequency"), true);
-  mqtt_publish ("homeassistant/sensor/upower/inverter_temperature/config", assemble_discover_sensor_message("iot", "Inverter Temperature", "℃", "energy", "homeassistant/sensor/upower/inverter/state", "temperature"), true);
+ // mqtt_publish ("homeassistant/sensor/upower/inverter_temperature/config", assemble_discover_sensor_message("iot", "Inverter Temperature", "℃", "temperature", "homeassistant/sensor/upower/inverter/state", "temperature"), true);
 	mqtt_publish ("homeassistant/sensor/upower/bypass_out_voltage/config", assemble_discover_sensor_message("byov", "Bypass In Voltage", "V", "energy", "homeassistant/sensor/upower/bypass/state", "inVoltage"), true);
   mqtt_publish ("homeassistant/sensor/upower/bypass_out_current/config", assemble_discover_sensor_message("byoc", "Bypass In Current", "A", "energy", "homeassistant/sensor/upower/bypass/state", "inCurrent"), true);
   mqtt_publish ("homeassistant/sensor/upower/bypass_out_wattage/config", assemble_discover_sensor_message("oybw", "Bypass In Wattage", "W", "energy", "homeassistant/sensor/upower/bypass/state", "inWattage"), true);
   mqtt_publish ("homeassistant/sensor/upower/battery_out_voltage/config", assemble_discover_sensor_message("bov", "Battery Out Voltage", "V", "energy", "homeassistant/sensor/upower/battery/state", "outVoltage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/battery_temperature/config", assemble_discover_sensor_message("bot", "Battery Temperature", "℃", "energy", "homeassistant/sensor/upower/battery/state", "temperature"), true);
+  mqtt_publish ("homeassistant/sensor/upower/battery_temperature/config", assemble_discover_sensor_message("bot", "Battery Temperature", "℃", "temperature", "homeassistant/sensor/upower/battery/state", "temperature"), true);
 
   return 0;
 }
 
 int Upower::publish_switch(){
   return mqtt_publish("homeassistant/switch/upower/inverter/state", switch_state[INVERTER]?"ON":"OFF") &&
-  mqtt_publish("homeassistant/switch/upower/solar/state", switch_state[SOLAR_CHARGE]?"ON":"OFF") &&
-  mqtt_publish("homeassistant/switch/upower/grid/state", switch_state[GRID_CHARGE]?"ON":"OFF") &&
-  mqtt_publish("homeassistant/switch/upower/bypassoff/state", switch_state[BYPASS]?"ON":"OFF");
+  mqtt_publish("homeassistant/switch/upower/solar_charge/state", switch_state[SOLAR_CHARGE]?"ON":"OFF") &&
+  mqtt_publish("homeassistant/switch/upower/grid_charge/state", switch_state[GRID_CHARGE]?"ON":"OFF") &&
+  mqtt_publish("homeassistant/switch/upower/gridout_prio/state", switch_state[GRID_PRIO]?"ON":"OFF");
 }
 int Upower::publish_data(){
   char buf[1024];
@@ -139,22 +139,22 @@ int Upower::publish_data(){
   pv_data["inVoltage"] = pv_in.voltage;
   pv_data["inCurrent"] = pv_in.current;
   pv_data["inWattage"] = pv_in.wattage;
-  pv_data["outVoltage"] = pv_out.voltage;
-  pv_data["outCurrent"] = pv_out.current;
-  pv_data["outWattage"] = pv_out.wattage;
-  pv_data["temperature"] = pv_out.temp;
-  pv_data["accumulate"] = pv_out.accumulate;
-  pv_data["state"] = pv_out.state;
+  pv_data["outVoltage"] = pv_charge.voltage;
+  pv_data["outCurrent"] = pv_charge.current;
+  pv_data["outWattage"] = pv_charge.wattage;
+  pv_data["temperature"] = pv_charge.temp;
+  pv_data["accumulate"] = pv_charge.accumulate;
+  pv_data["state"] = pv_charge.state;
 
   DynamicJsonDocument grid_data(1024);
   grid_data["inVoltage"] = grid_in.voltage;
   grid_data["inCurrent"] = grid_in.current;
   grid_data["inWattage"] = grid_in.wattage;
-  grid_data["outVoltage"] = grid_out.voltage;
-  grid_data["outCurrent"] = grid_out.current;
-  grid_data["outWattage"] = grid_out.wattage;
-  grid_data["temperature"] = grid_out.temp;
-  grid_data["accumulate"] = grid_out.accumulate;
+  grid_data["outVoltage"] = grid_charge.voltage;
+  grid_data["outCurrent"] = grid_charge.current;
+  grid_data["outWattage"] = grid_charge.wattage;
+  grid_data["temperature"] = grid_charge.temp;
+  grid_data["accumulate"] = grid_charge.accumulate;
 
   DynamicJsonDocument inverter_data(1024);
   inverter_data["inVoltage"] = inverter_in.voltage;
@@ -233,29 +233,26 @@ int Upower::update_data(){
     nResult354C = getUpowerStateFrom(0x354C, 16, ucValue354C);
 
     if(nResult3500 == modbus->ku8MBSuccess){
-        grid_out.voltage=(float)ucValue3500[5]/100;
-        grid_out.current=(float)ucValue3500[6]/100;
-        grid_out.wattage=(float)ucValue3500[7]/100 + (float)ucValue3500[8]*256*256/100;
-        grid_out.accumulate=(float)ucValue3500[15]/100 + (float)ucValue3500[16]*256*256/100;
-        grid_out.temp=(float)((int16_t)ucValue3500[18])/100;
+        grid_charge.voltage=(float)ucValue3500[5]/100;
+        grid_charge.current=(float)ucValue3500[6]/100;
+        grid_charge.wattage=(float)ucValue3500[7]/100 + (float)ucValue3500[8]*256*256/100;
+        grid_charge.accumulate=(float)ucValue3500[15]/100 + (float)ucValue3500[16]*256*256/100;
+        grid_charge.temp=(float)((int16_t)ucValue3500[18])/100;
         
-        grid_in.voltage=(float)ucValue3500[0]/100;
-        grid_in.current=grid_out.wattage/grid_in.voltage;
-        grid_in.wattage=grid_out.wattage;
-        
+                
     }
     if(nResult3519 == modbus->ku8MBSuccess){
         pv_in.voltage=(float)ucValue3519[0]/100;
         pv_in.current=(float)ucValue3519[1]/100;
         pv_in.wattage=(float)ucValue3519[2]/100 + (float)ucValue3519[3]*256*256/100;
 
-        pv_out.voltage=(float)ucValue3519[4]/100;
-        pv_out.current=(float)ucValue3519[5]/100;
-        pv_out.wattage=(float)ucValue3519[6]/100 + (float)ucValue3519[7]*256*256/100;
-        pv_out.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
-        pv_out.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
-        pv_out.state=(ucValue3519[16] >> 1) && 3;// 00 : No Charging, 01 : Float Charging, 10 : Boost Charging, 11 : Equalization
-        pv_out.temp=(float)((int16_t)ucValue3519[19])/100;
+        pv_charge.voltage=(float)ucValue3519[4]/100;
+        pv_charge.current=(float)ucValue3519[5]/100;
+        pv_charge.wattage=(float)ucValue3519[6]/100 + (float)ucValue3519[7]*256*256/100;
+        pv_charge.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
+        pv_charge.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
+        pv_charge.state=(ucValue3519[16] >> 1) && 3;// 00 : No Charging, 01 : Float Charging, 10 : Boost Charging, 11 : Equalization
+        pv_charge.temp=(float)((int16_t)ucValue3519[19])/100;
     }
     if(nResult352F == modbus->ku8MBSuccess){
         inverter_in.voltage=(float)ucValue352F[0]/100;
@@ -267,22 +264,41 @@ int Upower::update_data(){
     if(nResult354C == modbus->ku8MBSuccess){
         battery.voltage=(float)ucValue354C[0]/100;
         battery.temp=(float)((int16_t)ucValue354C[3])/100;
-        battery.state=ucValue354C[4];
+        battery.soc=ucValue354C[4];
+        battery.state=ucValue354C[7];
+
         bypass.voltage=(float)ucValue354C[12]/100;
-        bypass.current=(float)ucValue354C[13]/100;
+       	bypass.current=(float)ucValue354C[13]/100;
         bypass.wattage=(float)ucValue354C[14]/100; + (float)ucValue354C[15]*256*256/100;
     }
 
+    if(nResult3500 == modbus->ku8MBSuccess && nResult354C == modbus->ku8MBSuccess){
+	grid_in.voltage=(float)ucValue3500[0]/100;
+        grid_in.current=grid_charge.current + bypass.current;
+        grid_in.wattage=grid_charge.wattage + bypass.wattage;
+    }
+
+
+    if( switch_state[GRID_PRIO] == 0 ){
+        bypass.current = 0.0;
+	bypass.wattage = 0.0;
+	bypass.voltage = 0.0
+    }else{
+        inverter.current = 0.0;
+	inverter.wattage = 0.0;
+	inverter.voltage = 0.0;
+    }
+
     // if(nResult3500 == modbus->ku8MBSuccess){
-    //     grid_out.voltage=(float)ucValue3500[5]/100;
-    //     grid_out.current=(float)ucValue3500[6]/100;
-    //     grid_out.wattage=(float)ucValue3500[7]/100 + (float)ucValue3500[8]*256*256/100;
-    //     grid_out.accumulate=(float)ucValue3500[15]/100 + (float)ucValue3500[16]*256*256/100;
-    //     grid_out.temp=(float)ucValue3500[18]/100;
+    //     grid_charge.voltage=(float)ucValue3500[5]/100;
+    //     grid_charge.current=(float)ucValue3500[6]/100;
+    //     grid_charge.wattage=(float)ucValue3500[7]/100 + (float)ucValue3500[8]*256*256/100;
+    //     grid_charge.accumulate=(float)ucValue3500[15]/100 + (float)ucValue3500[16]*256*256/100;
+    //     grid_charge.temp=(float)ucValue3500[18]/100;
         
     //     grid_in.voltage=(float)ucValue3500[0]/100;
-    //     grid_in.current=grid_out.wattage/grid_in.voltage;
-    //     grid_in.wattage=grid_out.wattage;
+    //     grid_in.current=grid_charge.wattage/grid_in.voltage;
+    //     grid_in.wattage=grid_charge.wattage;
         
     // }
     // if(nResult3519 == modbus->ku8MBSuccess){
@@ -290,13 +306,13 @@ int Upower::update_data(){
     //     pv_in.current=(float)ucValue3519[1]/100;
     //     pv_in.wattage=(float)ucValue3519[2]/100 + (float)ucValue3519[3]*256*256/100;
 
-    //     pv_out.voltage=(float)ucValue3519[4]/100;
-    //     pv_out.current=(float)ucValue3519[5]/100;
-    //     pv_out.wattage=(float)ucValue3519[6]/100 + (float)ucValue3519[7]*256*256/100;
-    //     pv_out.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
-    //     pv_out.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
-    //     pv_out.state=(ucValue3519[16] >> 1) && 3;// 00 : No Charging, 01 : Float Charging, 10 : Boost Charging, 11 : Equalization
-    //     pv_out.temp=(float)ucValue3519[19]/100;
+    //     pv_charge.voltage=(float)ucValue3519[4]/100;
+    //     pv_charge.current=(float)ucValue3519[5]/100;
+    //     pv_charge.wattage=(float)ucValue3519[6]/100 + (float)ucValue3519[7]*256*256/100;
+    //     pv_charge.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
+    //     pv_charge.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
+    //     pv_charge.state=(ucValue3519[16] >> 1) && 3;// 00 : No Charging, 01 : Float Charging, 10 : Boost Charging, 11 : Equalization
+    //     pv_charge.temp=(float)ucValue3519[19]/100;
     // }
     // if(nResult352F == modbus->ku8MBSuccess){
     //     inverter_in.voltage=(float)ucValue352F[0]/100;
@@ -321,7 +337,7 @@ int Upower::update_switch(){
   //  prepareSerial();
   //  prepareModbus();
     
-    unsigned char results[STORAGE_MODE+1];
+    unsigned char results[NUM_OF_SWITCH];
 
     // delay(1000);
     
@@ -330,46 +346,47 @@ int Upower::update_switch(){
       switch_state[INVERTER] = modbus->getResponseBuffer(0) & (1 << 0);
     }
 
-    
-
-    results[BYPASS] = modbus->readCoils(0x0104, 1);
-    if(results[BYPASS] == modbus->ku8MBSuccess){
-      switch_state[BYPASS] = modbus->getResponseBuffer(0) & (1 << 0);
+    results[GRID_PRIO] = modbus->readCoils(0x0104, 1);
+    if(results[GRID_PRIO] == modbus->ku8MBSuccess){
+      switch_state[GRID_PRIO] = modbus->getResponseBuffer(0) & (1 << 0);
     }
 
     results[SOLAR_CHARGE] = modbus->readCoils(0x010B, 1);
     if(results[SOLAR_CHARGE] == modbus->ku8MBSuccess){
-      results[GRID_CHARGE] = results[SOLAR_CHARGE];
       switch_state[SOLAR_CHARGE] = modbus->getResponseBuffer(0) & (1 << 0);
-      switch_state[GRID_CHARGE] = modbus->getResponseBuffer(0) & (1 << 1);
-    }
-
-    results[STORAGE_MODE] = modbus->readHoldingRegisters(0x960D, 3);
-    if(results[STORAGE_MODE] == modbus->ku8MBSuccess){
-      switch_state[STORAGE_MODE] = modbus->getResponseBuffer(0) == STORAGE_MODE_BCV;
     }
     
+    results[GRID_CHARGE] = modbus->readCoils(0x010C, 1);
+    if(results[GRID_CHARGE] == modbus->ku8MBSuccess){
+      switch_state[GRID_CHARGE] = modbus->getResponseBuffer(0) & (1 << 0);
+    }
 
-    return results[BYPASS] | results[SOLAR_CHARGE] | results[GRID_CHARGE] | results[INVERTER] | results[STORAGE_MODE];
+    //results[STORAGE_MODE] = modbus->readHoldingRegisters(0x960D, 3);
+    //if(results[STORAGE_MODE] == modbus->ku8MBSuccess){
+    //  switch_state[STORAGE_MODE] = modbus->getResponseBuffer(0) == STORAGE_MODE_BCV;
+    //}
+    
+
+    return results[GRID_PRIO] | results[SOLAR_CHARGE] | results[GRID_CHARGE] | results[INVERTER];// | results[STORAGE_MODE];
 }
 
 
 const char* getStringSwitchName(switchType switch_type){
-  const char *retVal[] = {"inverter", "bypass", "solar_charge", "grid_charge", "storage_mode"};
+  const char *retVal[] = {"inverter", "gridout_prio", "solar_charge", "grid_charge"};//, "storage_mode"};
     return retVal[switch_type];
 }
 
 switchType getStringSwitchEnum(const char* switch_name){
     if (strcmp(switch_name, "inverter")==0){
       return INVERTER;
-    }else if (strcmp(switch_name, "bypass")==0){
-      return BYPASS;
+    }else if (strcmp(switch_name, "gridout_prio")==0){
+      return GRID_PRIO;
     }else if (strcmp(switch_name, "solar_charge")==0){
       return SOLAR_CHARGE;
     }else if (strcmp(switch_name, "grid_charge")==0){
       return GRID_CHARGE;
-    }else{
-      return STORAGE_MODE;
+    //}else{
+    //  return STORAGE_MODE;
     }
 }
 
@@ -382,9 +399,9 @@ int Upower::change_switch(const char* switch_name, const char* onoff){
   int value = 0;
   char topic[50];
   int result=-1;
-  int bcv;
-  int fcv;
-  int bvr;
+//  int bcv;
+//  int fcv;
+//  int bvr;
   int switch_type=-1;
   
   sprintf(topic, "homeassistant/switch/upower/%s/state", switch_name);
@@ -396,50 +413,50 @@ int Upower::change_switch(const char* switch_name, const char* onoff){
   if(strcmp(switch_name, "inverter") == 0){
     addr = 0x0106;
     switch_type = INVERTER;
-  }else if(strcmp(switch_name, "solar") == 0){
+  }else if(strcmp(switch_name, "solar_charge") == 0){
     addr = 0x010B;
     switch_type = SOLAR_CHARGE;
-  }else if(strcmp(switch_name, "grid") == 0){
+  }else if(strcmp(switch_name, "grid_charge") == 0){
     addr = 0x010C;
     switch_type = GRID_CHARGE;
-  }else if(strcmp(switch_name, "bypassoff") == 0){
+  }else if(strcmp(switch_name, "gridout_prio") == 0){
     addr = 0x0104;
-    switch_type = BYPASS;
-  }else if(strcmp(switch_name, "storage") == 0){
-    addr = 0x960D;
-    switch_type = STORAGE_MODE;
-    if(strcmp(onoff, "ON") == 0){
-      //storage mode
-      bcv = STORAGE_MODE_BCV;//2920
-      fcv = STORAGE_MODE_FCV;//2760
-      bvr = STORAGE_MODE_BVR;//2680
-    }else{
-      //full mode
-      bcv = FULL_MODE_BCV;
-      fcv = FULL_MODE_FCV;
-      bvr = FULL_MODE_BVR;
-    }
+    switch_type = GRID_PRIO;
+//  }else if(strcmp(switch_name, "storage") == 0){
+//    addr = 0x960D;
+//    switch_type = STORAGE_MODE;
+//    if(strcmp(onoff, "ON") == 0){
+//      //storage mode
+//      bcv = STORAGE_MODE_BCV;//2920
+//      fcv = STORAGE_MODE_FCV;//2760
+//      bvr = STORAGE_MODE_BVR;//2680
+//    }else{
+//      //full mode
+//      bcv = FULL_MODE_BCV;
+//      fcv = FULL_MODE_FCV;
+//      bvr = FULL_MODE_BVR;
+//    }
   }
 
 
   int try_count = 0;
   int mqttResult = 0;
   while(result != modbus->ku8MBSuccess){
-    if(strcmp(switch_name, "storage") == 0){
-      modbus->setTransmitBuffer(0, (bcv>>8)&255);
-      modbus->setTransmitBuffer(1, (bcv   )&255);//bcv
-      modbus->setTransmitBuffer(2, (fcv>>8)&255);
-      modbus->setTransmitBuffer(3, (fcv   )&255);//fcv
-      modbus->setTransmitBuffer(4, (bvr>>8)&255);
-      modbus->setTransmitBuffer(5, (bvr   )&255);//bvr
+//    if(strcmp(switch_name, "storage") == 0){
+//      modbus->setTransmitBuffer(0, (bcv>>8)&255);
+//      modbus->setTransmitBuffer(1, (bcv   )&255);//bcv
+//      modbus->setTransmitBuffer(2, (fcv>>8)&255);
+//      modbus->setTransmitBuffer(3, (fcv   )&255);//fcv
+//      modbus->setTransmitBuffer(4, (bvr>>8)&255);
+//      modbus->setTransmitBuffer(5, (bvr   )&255);//bvr
   
     
-      Serial.printf("writeMultipleRegisters @%x => %d %d %d\n", addr,bcv, fcv, bvr);
-      result = modbus->writeMultipleRegisters(addr, 3);
-    }else{
-      Serial.printf("writeSingleCoil @%x => %x\n", addr,value);
-      result = modbus->writeSingleCoil(addr,value);
-    }
+//      Serial.printf("writeMultipleRegisters @%x => %d %d %d\n", addr,bcv, fcv, bvr);
+//      result = modbus->writeMultipleRegisters(addr, 3);
+//    }else{
+    Serial.printf("writeSingleCoil @%x => %x\n", addr,value);
+    result = modbus->writeSingleCoil(addr,value);
+//    }
     
     if(result == modbus->ku8MBSuccess){
       Serial.printf("Success Switch %s\n", onoff);

@@ -14,6 +14,7 @@ struct power{
   float accumulate;
   float freq;
   int state;
+  int soc;
 };
 
 #define FULL_MODE_BCV NUM_MAX_CELL*365
@@ -26,21 +27,21 @@ struct power{
 
 enum switchType{
     INVERTER, 
-    BYPASS,//Turn On/Off Bypass Power
+    GRID_PRIO,//Turn On/Off Bypass Power
     SOLAR_CHARGE,//Turn On/Off Solar charge
     GRID_CHARGE,//Turn On/Off Grid charge
-    STORAGE_MODE,//Turn On : For Battery cell life, Limit charge percentage up to 70%, Turn Off : Full charge
+//    STORAGE_MODE,//Turn On : For Battery cell life, Limit charge percentage up to 70%, Turn Off : Full charge
     NUM_OF_SWITCH
 };
 
 class Upower  : public Device { 
     private: 
         struct power pv_in = {};
-        struct power pv_out = {};
+        struct power pv_charge = {};
         struct power inverter_out = {};
         struct power inverter_in = {};
         struct power grid_in = {};
-        struct power grid_out = {};
+        struct power grid_charge = {};
         struct power bypass = {};
         struct power battery = {};
         unsigned char getUpowerStateFrom(int addr, int size, uint16_t *buf);
