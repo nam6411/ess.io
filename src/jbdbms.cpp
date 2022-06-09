@@ -51,7 +51,7 @@ Jbdbms::Jbdbms(PubSubClient *_mqttClient, SoftwareSerial *_serial,
 int Jbdbms::setup_entity(){
     mqtt_register("Discharge Voltage", "voltage");
     mqtt_register("Discharge Current", "current");
-    mqtt_register("Discharge Wattage", "power");
+    mqtt_register("Discharge Wattage", "energy");
 
     mqtt_register("Capacity", "energy");
     mqtt_register("SoC", "battery");
