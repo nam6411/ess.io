@@ -29,9 +29,10 @@ enum switchType{
     BYPASS,//Turn On/Off Bypass Power
     SOLAR_CHARGE,//Turn On/Off Solar charge
     GRID_CHARGE,//Turn On/Off Grid charge
-    STORAGE_MODE,//Turn On : For Battery cell life, Limit charge percentage up to 70%, Turn Off : Full charge
+    // STORAGE_MODE,//Turn On : For Battery cell life, Limit charge percentage up to 70%, Turn Off : Full charge
     NUM_OF_SWITCH
 };
+
 
 class Upower  : public Device { 
     private: 
@@ -45,6 +46,7 @@ class Upower  : public Device {
         struct power battery = {};
         unsigned char getUpowerStateFrom(int addr, int size, uint16_t *buf);
         const char* device_domain = "upower";
+        int addresses[4] = {0x0106, 0x0104, 0x010b, 0x9616};
     public: 
         bool switch_state[NUM_OF_SWITCH] = {0,};
 

@@ -107,7 +107,7 @@ int Jbdbms::checksumCalc(char* buffer_data, int size){
 
     //길이 체크
     if(buffer_data[3] != size-7){
-        Serial.printf("\nBMS Header not matching : %d\n",size);
+        Serial.printf("\nBMS length not matching on Header: %d\n",size);
         return -1;
     }
     
@@ -205,25 +205,25 @@ int Jbdbms::asking(char* requestMessage, int sent_size, int min_length){
 
 	int buffer_size = serial->readBytes(bms_data, 50);
 
-    // Serial.printf("---------- sent : -----------\n");
-    // for(int i = 0 ; i < sent_size; i++){
-    //     if(i%5 == 0)
-    //         Serial.printf("\n%d : ", i);
-    //     Serial.printf("%02X ", requestMessage[i]);
-    // }
-    // Serial.printf("\n------------------");
+    Serial.printf("---------- sent : -----------\n");
+    for(int i = 0 ; i < sent_size; i++){
+        if(i%5 == 0)
+            Serial.printf("\n%d : ", i);
+        Serial.printf("%02X ", requestMessage[i]);
+    }
+    Serial.printf("\n------------------");
 
-    // Serial.printf("---------- got  : -----------\n");
-    // for(int i = 0 ; i < buffer_size; i++){
-    //     if(i%5 == 0)
-    //         Serial.printf("\n%d : ", i);
-    //     Serial.printf("%02X ", bms_data[i]);
-    // }
-    // Serial.printf("\n------------------");
+    Serial.printf("---------- got  : -----------\n");
+    for(int i = 0 ; i < buffer_size; i++){
+        if(i%5 == 0)
+            Serial.printf("\n%d : ", i);
+        Serial.printf("%02X ", bms_data[i]);
+    }
+    Serial.printf("\n------------------");
 
     if( buffer_size < min_length){
         Serial.printf("min_length : %d, return length : %d\n" , min_length, buffer_size);
-        return -3;
+        // return -3;
     }
 
     if(checksumCalc(bms_data, buffer_size) < 0){

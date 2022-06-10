@@ -132,46 +132,49 @@ int Upower::publish_switch(){
   mqtt_publish("homeassistant/switch/upower/grid/state", switch_state[GRID_CHARGE]?"ON":"OFF") &&
   mqtt_publish("homeassistant/switch/upower/bypassoff/state", switch_state[BYPASS]?"ON":"OFF");
 }
+double round2(double value) {
+   return (int)(value * 100 + 0.5) / 100.0;
+}
 int Upower::publish_data(){
   char buf[1024];
 
   DynamicJsonDocument pv_data(1024);
-  pv_data["inVoltage"] = pv_in.voltage;
-  pv_data["inCurrent"] = pv_in.current;
-  pv_data["inWattage"] = pv_in.wattage;
-  pv_data["outVoltage"] = pv_out.voltage;
-  pv_data["outCurrent"] = pv_out.current;
-  pv_data["outWattage"] = pv_out.wattage;
-  pv_data["temperature"] = pv_out.temp;
-  pv_data["accumulate"] = pv_out.accumulate;
-  pv_data["state"] = pv_out.state;
+  pv_data["inVoltage"] = round2(pv_in.voltage);
+  pv_data["inCurrent"] = round2(pv_in.current);
+  pv_data["inWattage"] = round2(pv_in.wattage);
+  pv_data["outVoltage"] = round2(pv_out.voltage);
+  pv_data["outCurrent"] = round2(pv_out.current);
+  pv_data["outWattage"] = round2(pv_out.wattage);
+  pv_data["temperature"] = round2(pv_out.temp);
+  pv_data["accumulate"] = round2(pv_out.accumulate);
+  pv_data["state"] = round2(pv_out.state);
 
   DynamicJsonDocument grid_data(1024);
-  grid_data["inVoltage"] = grid_in.voltage;
-  grid_data["inCurrent"] = grid_in.current;
-  grid_data["inWattage"] = grid_in.wattage;
-  grid_data["outVoltage"] = grid_out.voltage;
-  grid_data["outCurrent"] = grid_out.current;
-  grid_data["outWattage"] = grid_out.wattage;
-  grid_data["temperature"] = grid_out.temp;
-  grid_data["accumulate"] = grid_out.accumulate;
+  grid_data["inVoltage"] = round2(grid_in.voltage);
+  grid_data["inCurrent"] = round2(grid_in.current);
+  grid_data["inWattage"] = round2(grid_in.wattage);
+  grid_data["outVoltage"] = round2(grid_out.voltage);
+  grid_data["outCurrent"] = round2(grid_out.current);
+  grid_data["outWattage"] = round2(grid_out.wattage);
+  grid_data["temperature"] = round2(grid_out.temp);
+  grid_data["accumulate"] = round2(grid_out.accumulate);
 
   DynamicJsonDocument inverter_data(1024);
-  inverter_data["inVoltage"] = inverter_in.voltage;
-  inverter_data["outVoltage"] = inverter_out.voltage;
-  inverter_data["outCurrent"] = inverter_out.current;
-  inverter_data["outWattage"] = inverter_out.wattage;
-  inverter_data["outFrequency"] = inverter_out.freq;
-  inverter_data["temperature"] = inverter_out.temp;
+  inverter_data["inVoltage"] = round2(inverter_in.voltage);
+  inverter_data["outVoltage"] = round2(inverter_out.voltage);
+  inverter_data["outCurrent"] = round2(inverter_out.current);
+  inverter_data["outWattage"] = round2(inverter_out.wattage);
+  inverter_data["outFrequency"] = round2(inverter_out.freq);
+  inverter_data["temperature"] = round2(inverter_out.temp);
 
   DynamicJsonDocument bypass_data(1024);
-  bypass_data["inVoltage"] = bypass.voltage;
-  bypass_data["inCurrent"] = bypass.current;
-  bypass_data["inWattage"] = bypass.wattage;
+  bypass_data["inVoltage"] = round2(bypass.voltage);
+  bypass_data["inCurrent"] = round2(bypass.current);
+  bypass_data["inWattage"] = round2(bypass.wattage);
 
   DynamicJsonDocument battery_data(1024);
-  battery_data["outVoltage"] = battery.voltage;
-  battery_data["temperature"] = battery.temp;
+  battery_data["outVoltage"] = round2(battery.voltage);
+  battery_data["temperature"] = round2(battery.temp);
 
 
   serializeJson(grid_data, buf);
@@ -240,8 +243,8 @@ int Upower::update_data(){
         grid_out.temp=(float)((int16_t)ucValue3500[18])/100;
         
         grid_in.voltage=(float)ucValue3500[0]/100;
-        grid_in.current=grid_out.wattage/grid_in.voltage;
         grid_in.wattage=grid_out.wattage;
+        grid_in.current=grid_in.wattage == 0 ? 0 : (float)grid_out.wattage/(float)grid_in.voltage;
         
     }
     if(nResult3519 == modbus->ku8MBSuccess){
@@ -321,36 +324,41 @@ int Upower::update_switch(){
   //  prepareSerial();
   //  prepareModbus();
     
-    unsigned char results[STORAGE_MODE+1];
+    unsigned char results[NUM_OF_SWITCH];
 
     // delay(1000);
     
-    results[INVERTER] = modbus->readCoils(0x0106, 1);
+    results[INVERTER] = modbus->readCoils(addresses[INVERTER], 1);
     if(results[INVERTER] == modbus->ku8MBSuccess){
-      switch_state[INVERTER] = modbus->getResponseBuffer(0) & (1 << 0);
+      Serial.printf("Inverter returns : %d\n", modbus->getResponseBuffer(0));
+      switch_state[INVERTER] = modbus->getResponseBuffer(0);
     }
 
     
 
-    results[BYPASS] = modbus->readCoils(0x0104, 1);
+    results[BYPASS] = modbus->readCoils(addresses[BYPASS], 1);
     if(results[BYPASS] == modbus->ku8MBSuccess){
-      switch_state[BYPASS] = modbus->getResponseBuffer(0) & (1 << 0);
+      switch_state[BYPASS] = modbus->getResponseBuffer(0);
     }
 
-    results[SOLAR_CHARGE] = modbus->readCoils(0x010B, 1);
+    results[SOLAR_CHARGE] = modbus->readCoils(addresses[SOLAR_CHARGE], 1);
     if(results[SOLAR_CHARGE] == modbus->ku8MBSuccess){
-      results[GRID_CHARGE] = results[SOLAR_CHARGE];
-      switch_state[SOLAR_CHARGE] = modbus->getResponseBuffer(0) & (1 << 0);
-      switch_state[GRID_CHARGE] = modbus->getResponseBuffer(0) & (1 << 1);
+      switch_state[SOLAR_CHARGE] = modbus->getResponseBuffer(0);
+    }
+    results[GRID_CHARGE] = modbus->readHoldingRegisters(addresses[GRID_CHARGE], 1);
+    if(results[GRID_CHARGE] == modbus->ku8MBSuccess){
+      Serial.printf("grid charging returns : %d\n", modbus->getResponseBuffer(0));
+      switch_state[GRID_CHARGE] = modbus->getResponseBuffer(0) != 8;
     }
 
-    results[STORAGE_MODE] = modbus->readHoldingRegisters(0x960D, 3);
-    if(results[STORAGE_MODE] == modbus->ku8MBSuccess){
-      switch_state[STORAGE_MODE] = modbus->getResponseBuffer(0) == STORAGE_MODE_BCV;
-    }
+
+    // results[STORAGE_MODE] = modbus->readHoldingRegisters(0x960D, 3);
+    // if(results[STORAGE_MODE] == modbus->ku8MBSuccess){
+    //   switch_state[STORAGE_MODE] = modbus->getResponseBuffer(0) == STORAGE_MODE_BCV;
+    // }
     
 
-    return results[BYPASS] | results[SOLAR_CHARGE] | results[GRID_CHARGE] | results[INVERTER] | results[STORAGE_MODE];
+    return results[BYPASS] | results[SOLAR_CHARGE] | results[GRID_CHARGE] | results[INVERTER];// | results[STORAGE_MODE];
 }
 
 
@@ -368,9 +376,10 @@ switchType getStringSwitchEnum(const char* switch_name){
       return SOLAR_CHARGE;
     }else if (strcmp(switch_name, "grid_charge")==0){
       return GRID_CHARGE;
-    }else{
-      return STORAGE_MODE;
+    // }else{
+    //   return STORAGE_MODE;
     }
+    return NUM_OF_SWITCH;
 }
 
 int Upower::change_switch(const char* switch_name, const char* onoff){  
@@ -386,60 +395,59 @@ int Upower::change_switch(const char* switch_name, const char* onoff){
   int fcv;
   int bvr;
   int switch_type=-1;
-  
-  sprintf(topic, "homeassistant/switch/upower/%s/state", switch_name);
-  
-  if(strcmp(onoff, "ON") == 0){
-    value = 0xff;
-  }
 
-  if(strcmp(switch_name, "inverter") == 0){
-    addr = 0x0106;
-    switch_type = INVERTER;
-  }else if(strcmp(switch_name, "solar") == 0){
-    addr = 0x010B;
-    switch_type = SOLAR_CHARGE;
-  }else if(strcmp(switch_name, "grid") == 0){
-    addr = 0x010C;
-    switch_type = GRID_CHARGE;
-  }else if(strcmp(switch_name, "bypassoff") == 0){
-    addr = 0x0104;
-    switch_type = BYPASS;
-  }else if(strcmp(switch_name, "storage") == 0){
-    addr = 0x960D;
-    switch_type = STORAGE_MODE;
-    if(strcmp(onoff, "ON") == 0){
-      //storage mode
-      bcv = STORAGE_MODE_BCV;//2920
-      fcv = STORAGE_MODE_FCV;//2760
-      bvr = STORAGE_MODE_BVR;//2680
-    }else{
-      //full mode
-      bcv = FULL_MODE_BCV;
-      fcv = FULL_MODE_FCV;
-      bvr = FULL_MODE_BVR;
-    }
-  }
 
 
   int try_count = 0;
   int mqttResult = 0;
-  while(result != modbus->ku8MBSuccess){
-    if(strcmp(switch_name, "storage") == 0){
-      modbus->setTransmitBuffer(0, (bcv>>8)&255);
-      modbus->setTransmitBuffer(1, (bcv   )&255);//bcv
-      modbus->setTransmitBuffer(2, (fcv>>8)&255);
-      modbus->setTransmitBuffer(3, (fcv   )&255);//fcv
-      modbus->setTransmitBuffer(4, (bvr>>8)&255);
-      modbus->setTransmitBuffer(5, (bvr   )&255);//bvr
   
-    
-      Serial.printf("writeMultipleRegisters @%x => %d %d %d\n", addr,bcv, fcv, bvr);
-      result = modbus->writeMultipleRegisters(addr, 3);
+  sprintf(topic, "homeassistant/switch/upower/%s/state", switch_name);
+  
+  if(strcmp(onoff, "ON") == 0){
+    value = 0xff;//? 1??
+    // value = 0x1;
+  }
+
+  if(strcmp(switch_name, "inverter") == 0){
+    switch_type = INVERTER;
+  }else if(strcmp(switch_name, "solar") == 0){
+    switch_type = SOLAR_CHARGE;
+  }else if(strcmp(switch_name, "grid") == 0){
+    switch_type = GRID_CHARGE;
+    if(strcmp(onoff, "ON") == 0){
+      value = 4;
+      // value = 0x1;
     }else{
-      Serial.printf("writeSingleCoil @%x => %x\n", addr,value);
-      result = modbus->writeSingleCoil(addr,value);
+      value = 8;
     }
+    while(result != modbus->ku8MBSuccess){
+      Serial.printf("writeMultipleRegisters @%x => %x\n", addresses[switch_type],value);
+      result = modbus->writeMultipleRegisters(addresses[switch_type],value);
+      
+      if(result == modbus->ku8MBSuccess){
+        Serial.printf("Success Switch %s\n", onoff);
+        switch_state[switch_type] = strcmp(onoff, "ON") == 0;
+        
+        mqttResult = mqtt_publish(topic, switch_state[switch_type]?"ON":"OFF");
+      }else{    
+        Serial.printf("Failed to Switch %s as %d\n", onoff, result);
+      }
+      
+      if(try_count > 5){
+        Serial.printf("Failed to Switch %d times. break up \n", try_count);
+        break;
+      }
+      try_count++;
+      delay(100);
+    }
+    return result && !mqttResult;
+  }else if(strcmp(switch_name, "bypassoff") == 0){
+    switch_type = BYPASS;
+  }
+
+  while(result != modbus->ku8MBSuccess){
+    Serial.printf("writeSingleCoil @%x => %x\n", addresses[switch_type],value);
+    result = modbus->writeSingleCoil(addresses[switch_type],value);
     
     if(result == modbus->ku8MBSuccess){
       Serial.printf("Success Switch %s\n", onoff);
