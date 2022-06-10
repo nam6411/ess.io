@@ -35,6 +35,7 @@
 #include "rtusw_mk2.h"
 #include "antbms.h"
 #include "jbdbms.h"
+#include "jbdbms_ble.h"
 
 #include "ds1603da.h"
 #include "xymd02.h"
@@ -273,7 +274,9 @@ void setup()
 	devRtuSwitch = new RtuSwMk1(&mqttClient, &modbusSwitch , /*&modbus, &serialSwitch, */ 0, 8, "Equalizer", "Plumbing Drain", "Tank Drain", "Whale to Fill", "Aroundview", "Mover", "12v Charger");
 
 	devices[numOfDevice++] = devUpower;
-	devices[numOfDevice++] = new Jbdbms(&mqttClient, &serialBms,0, 16);
+	// devices[numOfDevice++] = new Jbdbms_ble(&mqttClient, &serialBms,0, 16);
+	devices[numOfDevice++] = new Jbdbms_ble(&mqttClient, "0000ff00-0000-1000-8000-00805f9b34fb", "0000ff02-0000-1000-8000-00805f9b34fb","0000ff01-0000-1000-8000-00805f9b34fb", 0, 16);
+
   	devices[numOfDevice++] = devRtuSwitch;
 	setup_mqtt();
 }
