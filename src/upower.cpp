@@ -4,6 +4,10 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 
+double round_range(double value) {
+  return (int)(value * 100 + 0.5) / 100.0;
+}
+
 Upower::Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus/*, SoftwareSerial *_serial*/){
   mqttClient = _mqttClient;
 
@@ -136,41 +140,41 @@ int Upower::publish_data(){
   char buf[1024];
 
   DynamicJsonDocument pv_data(1024);
-  pv_data["inVoltage"] = pv_in.voltage;
-  pv_data["inCurrent"] = pv_in.current;
-  pv_data["inWattage"] = pv_in.wattage;
-  pv_data["outVoltage"] = pv_charge.voltage;
-  pv_data["outCurrent"] = pv_charge.current;
-  pv_data["outWattage"] = pv_charge.wattage;
+  pv_data["inVoltage"] = round_range(pv_in.voltage);
+  pv_data["inCurrent"] = round_range(pv_in.current);
+  pv_data["inWattage"] = round_range(pv_in.wattage);
+  pv_data["outVoltage"] = round_range(pv_charge.voltage);
+  pv_data["outCurrent"] = round_range(pv_charge.current);
+  pv_data["outWattage"] = round_range(pv_charge.wattage);
+  pv_data["accumulate"] = round_range(pv_charge.accumulate);
   pv_data["temperature"] = pv_charge.temp;
-  pv_data["accumulate"] = pv_charge.accumulate;
   pv_data["state"] = pv_charge.state;
 
   DynamicJsonDocument grid_data(1024);
-  grid_data["inVoltage"] = grid_in.voltage;
-  grid_data["inCurrent"] = grid_in.current;
-  grid_data["inWattage"] = grid_in.wattage;
-  grid_data["outVoltage"] = grid_charge.voltage;
-  grid_data["outCurrent"] = grid_charge.current;
-  grid_data["outWattage"] = grid_charge.wattage;
+  grid_data["inVoltage"] = round_range(grid_in.voltage);
+  grid_data["inCurrent"] = round_range(grid_in.current);
+  grid_data["inWattage"] = round_range(grid_in.wattage);
+  grid_data["outVoltage"] = round_range(grid_charge.voltage);
+  grid_data["outCurrent"] = round_range(grid_charge.current);
+  grid_data["outWattage"] = round_range(grid_charge.wattage);
   grid_data["temperature"] = grid_charge.temp;
-  grid_data["accumulate"] = grid_charge.accumulate;
+  grid_data["accumulate"] = round_range(grid_charge.accumulate);
 
   DynamicJsonDocument inverter_data(1024);
-  inverter_data["inVoltage"] = inverter_in.voltage;
-  inverter_data["outVoltage"] = inverter_out.voltage;
-  inverter_data["outCurrent"] = inverter_out.current;
-  inverter_data["outWattage"] = inverter_out.wattage;
+  inverter_data["inVoltage"] = round_range(inverter_in.voltage);
+  inverter_data["outVoltage"] = round_range(inverter_out.voltage);
+  inverter_data["outCurrent"] = round_range(inverter_out.current);
+  inverter_data["outWattage"] = round_range(inverter_out.wattage);
   inverter_data["outFrequency"] = inverter_out.freq;
   inverter_data["temperature"] = inverter_out.temp;
 
   DynamicJsonDocument bypass_data(1024);
-  bypass_data["inVoltage"] = bypass.voltage;
-  bypass_data["inCurrent"] = bypass.current;
-  bypass_data["inWattage"] = bypass.wattage;
+  bypass_data["inVoltage"] = round_range(bypass.voltage);
+  bypass_data["inCurrent"] = round_range(bypass.current);
+  bypass_data["inWattage"] = round_range(bypass.wattage);
 
   DynamicJsonDocument battery_data(1024);
-  battery_data["outVoltage"] = battery.voltage;
+  battery_data["outVoltage"] = round_range(battery.voltage);
   battery_data["temperature"] = battery.temp;
 
 
@@ -250,7 +254,6 @@ int Upower::update_data(){
         pv_charge.current=(float)ucValue3519[5]/100;
         pv_charge.wattage=(float)ucValue3519[6]/100 + (float)ucValue3519[7]*256*256/100;
         pv_charge.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
-        pv_charge.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
         pv_charge.state=(ucValue3519[16] >> 1) && 3;// 00 : No Charging, 01 : Float Charging, 10 : Boost Charging, 11 : Equalization
         pv_charge.temp=(float)((int16_t)ucValue3519[19])/100;
     }
@@ -273,63 +276,11 @@ int Upower::update_data(){
     }
 
     if(nResult3500 == modbus->ku8MBSuccess && nResult354C == modbus->ku8MBSuccess){
-	grid_in.voltage=(float)ucValue3500[0]/100;
+	      grid_in.voltage=(float)ucValue3500[0]/100;
         grid_in.current=grid_charge.current + bypass.current;
         grid_in.wattage=grid_charge.wattage + bypass.wattage;
     }
 
-
-    if( switch_state[GRID_PRIO] == 0 ){
-        bypass.current = 0.0;
-	bypass.wattage = 0.0;
-	bypass.voltage = 0.0
-    }else{
-        inverter.current = 0.0;
-	inverter.wattage = 0.0;
-	inverter.voltage = 0.0;
-    }
-
-    // if(nResult3500 == modbus->ku8MBSuccess){
-    //     grid_charge.voltage=(float)ucValue3500[5]/100;
-    //     grid_charge.current=(float)ucValue3500[6]/100;
-    //     grid_charge.wattage=(float)ucValue3500[7]/100 + (float)ucValue3500[8]*256*256/100;
-    //     grid_charge.accumulate=(float)ucValue3500[15]/100 + (float)ucValue3500[16]*256*256/100;
-    //     grid_charge.temp=(float)ucValue3500[18]/100;
-        
-    //     grid_in.voltage=(float)ucValue3500[0]/100;
-    //     grid_in.current=grid_charge.wattage/grid_in.voltage;
-    //     grid_in.wattage=grid_charge.wattage;
-        
-    // }
-    // if(nResult3519 == modbus->ku8MBSuccess){
-    //     pv_in.voltage=(float)ucValue3519[0]/100;
-    //     pv_in.current=(float)ucValue3519[1]/100;
-    //     pv_in.wattage=(float)ucValue3519[2]/100 + (float)ucValue3519[3]*256*256/100;
-
-    //     pv_charge.voltage=(float)ucValue3519[4]/100;
-    //     pv_charge.current=(float)ucValue3519[5]/100;
-    //     pv_charge.wattage=(float)ucValue3519[6]/100 + (float)ucValue3519[7]*256*256/100;
-    //     pv_charge.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
-    //     pv_charge.accumulate=(float)ucValue3519[14]/100 + (float)ucValue3519[15]*256*256/100;
-    //     pv_charge.state=(ucValue3519[16] >> 1) && 3;// 00 : No Charging, 01 : Float Charging, 10 : Boost Charging, 11 : Equalization
-    //     pv_charge.temp=(float)ucValue3519[19]/100;
-    // }
-    // if(nResult352F == modbus->ku8MBSuccess){
-    //     inverter_in.voltage=(float)ucValue352F[0]/100;
-    //     inverter_out.voltage=(float)ucValue352F[4]/100;
-    //     inverter_out.current=(float)ucValue352F[5]/100;
-    //     inverter_out.wattage=(float)ucValue352F[7]/100 + (float)ucValue352F[8]*256*256/100;
-    //     inverter_out.freq=(float)ucValue352F[12]/100;
-    // }
-    // if(nResult354C == modbus->ku8MBSuccess){
-    //     battery.voltage=(float)ucValue354C[0]/100;
-    //     battery.temp=(float)ucValue354C[3]/100;
-    //     battery.state=ucValue354C[4];
-    //     bypass.voltage=(float)ucValue354C[12]/100;
-    //     bypass.current=(float)ucValue354C[13]/100;
-    //     bypass.wattage=(float)ucValue354C[14]/100; + (float)ucValue354C[15]*256*256/100;
-    // }
-    // return nResult3500 | nResult3519 | nResult352F | nResult354C;
     return nResult3500 | nResult3519 | nResult352F | nResult354C;
 }
 
@@ -383,7 +334,7 @@ switchType getStringSwitchEnum(const char* switch_name){
       return GRID_PRIO;
     }else if (strcmp(switch_name, "solar_charge")==0){
       return SOLAR_CHARGE;
-    }else if (strcmp(switch_name, "grid_charge")==0){
+    }else{
       return GRID_CHARGE;
     //}else{
     //  return STORAGE_MODE;
