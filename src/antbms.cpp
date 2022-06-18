@@ -291,7 +291,9 @@ void Antbms::parseBMSData(char* bms_data, int size){
 		charge_mosfet_status=((uint16_t)bms_data[103]) == 1;
 		discharge_mosfet_status=((uint16_t)bms_data[104]) == 1;
         
-	}
+	}else{
+        Serial.printf("short data size : %d\n", size);
+    }
 }
 
 int Antbms::update_data(){
@@ -334,12 +336,14 @@ int Antbms::update_data(){
         Serial.printf("\nBMS Checksum FAILED!!\n");
         return -4;
     }
-    
-    parseBMSData(bms_data, buffer_size);
+        // Serial.printf("aaa %d", buffer_size);
 
-    slow_charge = get_param(9) == 10;
-    Serial.printf("slow_charge : %d\n", slow_charge);
-    check_sleep_mode();
+    parseBMSData(bms_data, buffer_size);
+        // Serial.printf("aaa ");
+
+    // slow_charge = get_param(9) == 10;
+    // Serial.printf("slow_charge : %d\n", slow_charge);
+    // check_sleep_mode();
 
     return 0;
 }
@@ -362,11 +366,11 @@ int Antbms::check_sleep_mode(){
             set_param(9, 1000);
         }
     }else{
-        Serial.println("Not sleep mode");
-        if(slow_charge){
-            Serial.println("now slow mode, so set fast mode");
-            set_param(9, 1000);
-        }
+        // Serial.println("Not sleep mode");
+        // if(slow_charge){
+        //     Serial.println("now slow mode, so set fast mode");
+        //     set_param(9, 1000);
+        // }
     }
     return 0;
 }

@@ -45,7 +45,11 @@ class XYMD02 : public Device {
         int zscore(float value, float* zscore_data, float* zscore_filter, int* zscore_index);
 
     public: 
+        #ifdef ESP8266
         XYMD02(PubSubClient *mqttClient, ModbusMaster *_modbus, SoftwareSerial *_serial, int _slaveId);
+        #else
+        XYMD02(PubSubClient *mqttClient, ModbusMaster *_modbus, int _slaveId);
+        #endif
         virtual int publish_switch();
         virtual int publish_data();
         

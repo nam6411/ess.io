@@ -179,14 +179,14 @@ void setup()
 
 	Serial.printf("Start!!\n");
 
-	pinMode(MOVER_BUTTON_PIN, INPUT_PULLUP);
-	pinMode(INVERTER_BUTTON_PIN, INPUT_PULLUP);
+	// pinMode(MOVER_BUTTON_PIN, INPUT_PULLUP);
+	// pinMode(INVERTER_BUTTON_PIN, INPUT_PULLUP);
 
-	pinMode(INVERTER_STATE_PIN, OUTPUT);
-	pinMode(MOVER_STATE_PIN, OUTPUT);
+	// pinMode(INVERTER_STATE_PIN, OUTPUT);
+	// pinMode(MOVER_STATE_PIN, OUTPUT);
 
-	attachInterrupt(MOVER_BUTTON_PIN, Ext_MOVER_ISR, FALLING);
-	attachInterrupt(INVERTER_BUTTON_PIN, Ext_INVERTER_ISR, FALLING);
+	// attachInterrupt(MOVER_BUTTON_PIN, Ext_MOVER_ISR, FALLING);
+	// attachInterrupt(INVERTER_BUTTON_PIN, Ext_INVERTER_ISR, FALLING);
 
 	
 	mqttClient.setBufferSize(MQTT_MAX_PACKET_SIZE);
@@ -240,12 +240,11 @@ void setup()
 
 	Serial.println("Start Devices initialize");
 	#if defined(ESP8266)
-	serialUpower.begin(115200, SWSERIAL_8N1, 13, 12, false, 256);//upower 라인 : 22, 23
-	serialBms.begin(9600, SWSERIAL_8N1, 5, 16, false, 256);//bms 라인 : 18, 19
-	// serialSwitch.begin(9600, SWSERIAL_8N1, 13, 12, false, 256);//sw 라인 : 16, 17
+	// serialUpower.begin(115200, SWSERIAL_8N1, 13, 12, false, 256);//upower 라인 : 22, 23
+	serialBms.begin(19200, SWSERIAL_8N1, 5, 16, false, 256);//bms 라인 : 18, 19
+	serialSwitch.begin(9600, SWSERIAL_8N1, 13, 12, false, 256);//sw 라인 : 16, 17
 	#elif defined(ESP32)
-	// serialUpower.begin(115200, SWSERIAL_8N1, 22, 23, false, 256);//upower 라인 : 22, 23
-	serialUpower.begin(115200, SWSERIAL_8N1, 22, 23, false, 256);//sw 라인 : 16, 17
+	// serialUpower.begin(115200, SWSERIAL_8N1, 22, 23, false, 256);//sw 라인 : 16, 17
 	serialBms.begin(9600, SWSERIAL_8N1, 16, 17, false, 256);//bms 라인 : 18, 19
 	serialSwitch.begin(9600, SWSERIAL_8N1, 18, 19, false, 256);//sw 라인 : 16, 17
 	#endif
@@ -255,26 +254,48 @@ void setup()
 
 	delay(100);
 
-	modbusUpower.postTransmission(modbusUpowerPostTransmission);
-	modbusUpower.preTransmission(modbusUpowerPreTransmission);
-	modbusSwitch.postTransmission(modbusSwitchPostTransmission);
-	modbusSwitch.preTransmission(modbusSwitchPreTransmission);
 
-	modbusUpower.begin(10, serialUpower);
-	modbusSwitch.begin(255, serialSwitch);
 
 	delay(100);
   
 	numOfDevice=0;
-  
-	devUpower = new Upower(&mqttClient, &modbusUpower /*&modbus, &serialUpower*/);
-	// devUpower = new RtuSwMk1(&mqttClient, &modbusUpower,3, 4, "Equalizer", "Plumbing Drain", "Tank Drain", "Whale to Fill");
-	// devUpower = new Upower(&mqttClient, &modbusUpower /*&modbus, &serialUpower*/);
-	devRtuSwitch = new RtuSwMk1(&mqttClient, &modbusSwitch , /*&modbus, &serialSwitch, */ 0, 8, "Equalizer", "Plumbing Drain", "Tank Drain", "Whale to Fill", "Aroundview", "Mover", "12v Charger");
+	#ifdef ESP8266
 
+
+	// modbusUpower.postTransmission(modbusUpowerPostTransmission);
+	// modbusUpower.preTransmission(modbusUpowerPreTransmission);
+	modbusSwitch.postTransmission(modbusSwitchPostTransmission);
+	modbusSwitch.preTransmission(modbusSwitchPreTransmission);
+	
+	// modbusUpower.begin(10, serialUpower);
+	modbusSwitch.begin(255, serialSwitch)
+	;
+
+	//for 572UT
+	// devices[numOfDevice++] = new Upower(&mqttClient,  &modbusUpower);
+	devices[numOfDevice++] = new Antbms(&mqttClient, &serialBms);
+	devices[numOfDevice++] = new RtuSwMk1(&mqttClient, &modbusSwitch, &serialSwitch, 1, 1, "Equalize");
+	devices[numOfDevice++] = new RtuSwMk2(&mqttClient, &modbusSwitch, &serialSwitch, 2, 3, "Water drain1", "Fridge", "Around View");
+	devices[numOfDevice++] = new RtuSwMk2(&mqttClient, &modbusSwitch, &serialSwitch, 3, 4, "Water drain2", "External Pump", "Fill", "Heating Preheat");
+	devices[numOfDevice++] = new XYMD02(&mqttClient, &modbusSwitch, &serialSwitch, 0xb3);
+	devices[numOfDevice++] = new XYMD02(&mqttClient, &modbusSwitch, &serialSwitch, 0xb4);
+	#endif
+
+	#ifdef ESP32
+	modbusUpower.postTransmission(modbusUpowerPostTransmission);
+	modbusUpower.preTransmission(modbusUpowerPreTransmission);
+	modbusSwitch.postTransmission(modbusSwitchPostTransmission);
+	modbusSwitch.preTransmission(modbusSwitchPreTransmission);
+	
+	modbusUpower.begin(10, serialUpower);
+	modbusSwitch.begin(255, serialSwitch);
+
+	devUpower = new Upower(&mqttClient, &modbusUpower /*&modbus, &serialUpower*/);
+	devRtuSwitch = new RtuSwMk1(&mqttClient, &modbusSwitch , /*&modbus, &serialSwitch, */ 0, 8, "Equalizer", "Plumbing Drain", "Tank Drain", "Whale to Fill", "Aroundview", "Mover", "12v Charger");
 	devices[numOfDevice++] = devUpower;
 	devices[numOfDevice++] = new Jbdbms(&mqttClient, &serialBms,0, 16);
   	devices[numOfDevice++] = devRtuSwitch;
+	#endif
 	setup_mqtt();
 }
 
@@ -286,9 +307,9 @@ void updateStates(int deviceNumber){
 	Serial.printf("device %d - data update\n", deviceNumber);
 	devices[deviceNumber]->update_data();
 	
-	Serial.printf("Inverter : %d, Mover : %d \n", devUpower->switch_state[0], devRtuSwitch->getSwitchState(6));
-    digitalWrite(INVERTER_STATE_PIN, devUpower->switch_state[0] == 1 ? HIGH:LOW);
-    digitalWrite(MOVER_STATE_PIN, devRtuSwitch->getSwitchState(6) == 1 ? HIGH:LOW);
+	// Serial.printf("Inverter : %d, Mover : %d \n", devUpower->switch_state[0], devRtuSwitch->getSwitchState(6));
+    // digitalWrite(INVERTER_STATE_PIN, devUpower->switch_state[0] == 1 ? HIGH:LOW);
+    // digitalWrite(MOVER_STATE_PIN, devRtuSwitch->getSwitchState(6) == 1 ? HIGH:LOW);
 
 
 }
@@ -480,7 +501,7 @@ void loop(){
 		queueMover = 0;
 	}
 
-	if (now - lastMsg > 2000) {
+	if (now - lastMsg > 1000) {
 		lastMsg = now;
 		printf("set 0 : %d, %d\n",queueMover, queueInverter);
 		queueMover = 0;

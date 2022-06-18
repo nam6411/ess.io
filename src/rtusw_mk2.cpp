@@ -1,13 +1,16 @@
 #include "rtusw_mk2.h"
-
+#ifdef ESP8266
+RtuSwMk2::RtuSwMk2(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial *_serial, int _slaveID, int _numOfSW, ...){//"Battery 12V", "Battery Equalize"
+#else
 RtuSwMk2::RtuSwMk2(PubSubClient *_mqttClient, ModbusMaster *_modbus, int _slaveID, int _numOfSW, ...){//"Battery 12V", "Battery Equalize"
+#endif
 
 	slaveID = _slaveID;
 	numOfSW = _numOfSW;
  	mqttClient = _mqttClient;
 
 	modbus = _modbus;
-	// serial = _serial;
+	serial = _serial;
 
 	subscribe_size = 0;
 	for(int i = 1 ; i < numOfSW+1 ; i++){
@@ -41,8 +44,10 @@ int RtuSwMk2::setup_entity(){
 		sprintf(this_topic_state, "homeassistant/switch/%s/%d%d/state\0", device_domain, slaveID, i);
 		sprintf(this_topic_set, "homeassistant/switch/%s/%d%d/set\0", device_domain, slaveID, i);
 		sprintf(this_uniq_id, "rsw%d%d\0", slaveID, i);
+
+
     
-    	char msgbuf[1024];
+    	char msgbuf[1500];
 
 		if(mqtt_publish (this_topic_sensor, "", true)){
 			if(mqtt_publish (this_topic_sensor, assemble_discover_switch_message(this_uniq_id, role[i], this_topic_state, this_topic_set, msgbuf), true)){
@@ -78,7 +83,7 @@ int RtuSwMk2::update_data(){
 
 int RtuSwMk2::update_switch(){
 	// prepareSerial();
-  	// prepareModbus();
+  	prepareModbus();
     char nResult;
 	modbus->clearResponseBuffer();
 
@@ -111,7 +116,7 @@ int RtuSwMk2::update_switch(){
 
 int RtuSwMk2::change_switch(const char* switch_name, const char* onoff){
 	// prepareSerial();
-  	// prepareModbus();
+  	prepareModbus();
 	int add= atoi(switch_name);
 	int rtuDevNo = add/10;
 	int rtuSWNo = add%10;

@@ -15,7 +15,11 @@ class RtuSwMk2  : public Device {
         char* role[NUM_RTU_MK2_SW+1];
         bool isSuccess;
     public: 
+    #ifdef ESP8266
+        RtuSwMk2(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial *_serial, int _slaveID, int _numOfSW, ...);
+    #else
         RtuSwMk2(PubSubClient *_mqttClient, ModbusMaster *_modbus, /*SoftwareSerial *_serial, */int _slaveID, int _numOfSW, ...);
+    #endif
         bool switch_state[NUM_RTU_MK2_SW+1];
         
         virtual int publish_switch();

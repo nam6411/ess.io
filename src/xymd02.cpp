@@ -45,8 +45,11 @@ int XYMD02::zscore(float value, float* zscore_data, float* zscore_filter, int* z
     return signal;
 }
 
-
+#ifdef ESP8266
 XYMD02::XYMD02(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial *_serial, int _slaveID){
+#else
+XYMD02::XYMD02(PubSubClient *_mqttClient, ModbusMaster *_modbus, /*SoftwareSerial *_serial, */ int _slaveID){
+#endif
   slaveID = _slaveID;
   mqttClient = _mqttClient;
 
@@ -127,7 +130,7 @@ int XYMD02::publish_data(){
 }
 
 int XYMD02::update_data(){
-  prepareSerial();
+  // prepareSerial();
   prepareModbus();
   int nResult = modbus->readInputRegisters(0x01, 0x02);
   if(nResult == modbus->ku8MBSuccess ){
@@ -135,14 +138,14 @@ int XYMD02::update_data(){
     humidity_state.temperature = (float)((int16_t)modbus->getResponseBuffer(0))/10.0f;
     humidity_state.humidity = (float)((int16_t)modbus->getResponseBuffer(1))/10.0f;
 
-    int zscore_status_temp = zscore(humidity_state.temperature, zscore_data_temp, &zscore_filter_temp, &zscore_index_temp);
-    int zscore_status_humi = zscore(humidity_state.humidity, zscore_data_humi, &zscore_filter_humi, &zscore_index_humi);
+    // int zscore_status_temp = zscore(humidity_state.temperature, zscore_data_temp, &zscore_filter_temp, &zscore_index_temp);
+    // int zscore_status_humi = zscore(humidity_state.humidity, zscore_data_humi, &zscore_filter_humi, &zscore_index_humi);
 
-    if(zscore_status_temp != 0 && zscore_status_humi != 0){
-      zscore_status = 0;
-    }else{
-      zscore_status = 1;
-    }
+    // if(zscore_status_temp != 0 && zscore_status_humi != 0){
+    //   zscore_status = 0;
+    // }else{
+    //   zscore_status = 1;
+    // }
 
     isSuccess = true;
     Serial.printf("Success request on %04X~%04X : RES(%03d)\n", 0x01, 0x02, nResult);
