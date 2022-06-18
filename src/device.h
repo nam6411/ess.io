@@ -51,6 +51,8 @@ class Device  {
         char device_id[7];
         char device_name[20];
         char call_name[20];
+        String device_sensor_root;
+        String device_switch_root;
         char* assemble_device(char* buf);
         char* assemble_discover_switch_message(char* uniq_id, char* name, char* state_topic, char* command_topic, char* buf);
         char* assemble_discover_sensor_message(char* uniq_id, char* name, char* unit, char* device_class, char* state_topic, char* value_json, char* buf);

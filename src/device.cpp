@@ -55,6 +55,7 @@ void Device::prepareSerial(){
     // serial->begin(comm_info.baudrate);
     serial->begin(comm_info.baudrate, SWSERIAL_8N1, comm_info.rx_pin, comm_info.tx_pin, false, 256);
     delay(100);
+    Serial.printf("Change baudrate : %d\n", comm_info.baudrate);
     // serial->flush();
   }
 };

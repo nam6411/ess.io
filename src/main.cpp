@@ -125,7 +125,7 @@ SoftwareSerial serialSwitch;
 SoftwareSerial serialBms;
 
 ModbusMaster modbusUpower;
-ModbusMaster modbusSwitch;
+// ModbusMaster modbusSwitch;
 
 
 
@@ -264,20 +264,20 @@ void setup()
 
 	modbusUpower.postTransmission(modbusUpowerPostTransmission);
 	modbusUpower.preTransmission(modbusUpowerPreTransmission);
-	modbusSwitch.postTransmission(modbusSwitchPostTransmission);
-	modbusSwitch.preTransmission(modbusSwitchPreTransmission);
+	// modbusSwitch.postTransmission(modbusSwitchPostTransmission);
+	// modbusSwitch.preTransmission(modbusSwitchPreTransmission);
 	
 	modbusUpower.begin(10, serialUpower);
-	modbusSwitch.begin(255, serialUpower);
+	// modbusSwitch.begin(255, serialUpower);
 
 	//for 572UT
 	devices[numOfDevice++] = new Upower(&mqttClient,  &modbusUpower, &serialUpower);
 	devices[numOfDevice++] = new Antbms(&mqttClient, &serialBms);
-	devices[numOfDevice++] = new RtuSwMk1(&mqttClient, &modbusSwitch, &serialUpower, 1, 1, "Equalize");
-	devices[numOfDevice++] = new RtuSwMk2(&mqttClient, &modbusSwitch, &serialUpower, 2, 3, "Water drain1", "Fridge", "Around View");
-	devices[numOfDevice++] = new RtuSwMk2(&mqttClient, &modbusSwitch, &serialUpower, 3, 4, "Water drain2", "External Pump", "Fill", "Heating Preheat");
-	devices[numOfDevice++] = new XYMD02(&mqttClient, &modbusSwitch, &serialUpower, 0xb3);
-	devices[numOfDevice++] = new XYMD02(&mqttClient, &modbusSwitch, &serialUpower, 0xb4);
+	// devices[numOfDevice++] = new RtuSwMk1(&mqttClient, &modbusUpower, &serialUpower, 1, 1, "Equalize");
+	// devices[numOfDevice++] = new RtuSwMk2(&mqttClient, &modbusUpower, &serialUpower, 2, 3, "Water drain1", "Fridge", "Around View");
+	// devices[numOfDevice++] = new RtuSwMk2(&mqttClient, &modbusUpower, &serialUpower, 3, 4, "Water drain2", "External Pump", "Fill", "Heating Preheat");
+	// devices[numOfDevice++] = new XYMD02(&mqttClient, &modbusUpower, &serialUpower, 0xb3);
+	// devices[numOfDevice++] = new XYMD02(&mqttClient, &modbusUpower, &serialUpower, 0xb4);
 	#endif
 
 	#ifdef ESP32
@@ -560,7 +560,7 @@ void webRootHandler(){
 }
 
 void webSettingsHandler() {
-	String buf = "<head> \
+	String buf = String(F("<head> \
 <script> \
 	var wSocket = new WebSocket(\"ws://\"+window.location.hostname+\":81/\"); \
 	wSocket.onopen = function(e) { \
@@ -585,38 +585,37 @@ void webSettingsHandler() {
 <body> \
 	<form action=\"/setssid\"  method=\"post\"> \
 		<label for=\"ssid\">ssid:</label><br> \
-		<input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"";
-	buf.concat(ssid);
-	buf.concat("\"><br> \
+		<input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"")) + \
+		ssid + \
+		String(F("\"><br> \
 		<label for=\"password\">password:</label><br> \
-		<input type=\"text\" id=\"password\" name=\"password\" value=\"");
-	
-	buf.concat(ssid_pw);
-
-	buf.concat("\"><br> \
+		<input type=\"text\" id=\"password\" name=\"password\" value=\"")) + 
+		ssid_pw + \
+		String(F("\"><br> \
 	<label for=\"mqtt_address\">mqtt_address:</label><br> \
-	<input type=\"text\" id=\"mqtt_address\" name=\"mqtt_address\" value=\"");
-	buf.concat(mqtt_addr);
-	buf.concat("\"><br> \
+	<input type=\"text\" id=\"mqtt_address\" name=\"mqtt_address\" value=\"")) + \
+	mqtt_addr + \
+	String(F("\"><br> \
 	<label for=\"mqtt_port\">mqtt_port:</label><br> \
-	<input type=\"text\" id=\"mqtt_port\" name=\"mqtt_port\" value=\"");
-	buf.concat(mqtt_port);
-	buf.concat("\"><br> \
+	<input type=\"text\" id=\"mqtt_port\" name=\"mqtt_port\" value=\"")) + \
+	mqtt_port + \
+	String(F("\"><br> \
 	<label for=\"mqtt_id\">mqtt_id:</label><br> \
-	<input type=\"text\" id=\"mqtt_id\" name=\"mqtt_id\" value=\"");
-	buf.concat(mqtt_client_id);
-	buf.concat("\"><br> \
+	<input type=\"text\" id=\"mqtt_id\" name=\"mqtt_id\" value=\"")) + \
+	mqtt_client_id + \
+	String(F("\"><br> \
 	<label for=\"mqtt_password\">mqtt_password:</label><br> \
-	<input type=\"text\" id=\"mqtt_password\" name=\"mqtt_password\" value=\"");
-	buf.concat(mqtt_client_pw);
-	buf.concat("\"><br> \
+	<input type=\"text\" id=\"mqtt_password\" name=\"mqtt_password\" value=\"")) + \
+	mqtt_client_pw + 
+	String(F("\"><br> \
 		<input type=\"submit\" value=\"Submit\"> \
 	</form> \
 	<form action=\"/reset\"> \
 		<input type=\"submit\" value=\"Reset\"> \
 	</form> \
 	<input type=\"button\" value=\"send\" onclick=\"send()\" > \
-</body>");
+</body>"));
+
 
 	server.send(200, "text/html", buf);
 }

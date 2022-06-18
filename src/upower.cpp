@@ -15,11 +15,11 @@ Upower::Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial 
 	serial = _serial;
   printf("modbus : %p", modbus);
   subscribe_size = 4 ;
-	subscribe_list[0] = (char*)"homeassistant/switch/upower/inverter/set";
-	subscribe_list[1] = (char*)"homeassistant/switch/upower/solar_charge/set";
-	subscribe_list[2] = (char*)"homeassistant/switch/upower/grid_charge/set";
-	subscribe_list[3] = (char*)"homeassistant/switch/upower/gridout_prio/set";
-	//subscribe_list[4];' = (char*)"homeassistant/switch/upower/storage/set";
+	subscribe_list[0] = ("homeassistant/switch/upower/inverter/set");
+	subscribe_list[1] = ("homeassistant/switch/upower/solar_charge/set");
+	subscribe_list[2] = ("homeassistant/switch/upower/grid_charge/set");
+	subscribe_list[3] = ("homeassistant/switch/upower/gridout_prio/set");
+	//subscribe_list[4];' = (char*)F("homeassistant/switch/upower/storage/set");
   // configuration();
 
   comm_info.rx_pin=13;
@@ -32,109 +32,108 @@ Upower::Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial 
 
 int Upower::setup_entity(){
   
-	mqtt_publish ("homeassistant/switch/upower/inverter/config", "");
-	mqtt_publish ("homeassistant/switch/upower/grid/config", "");
-	mqtt_publish ("homeassistant/switch/upower/solar/config", "");
-	mqtt_publish ("homeassistant/switch/upower/bypass/config", "");
-// mqtt_publish ("homeassistant/switch/upower/storage/config", "");
+// 	mqtt_publish (F("homeassistant/switch/upower/inverter/config"), "");
+// 	mqtt_publish (F("homeassistant/switch/upower/grid/config"), "");
+// 	mqtt_publish (F("homeassistant/switch/upower/solar/config"), "");
+// 	mqtt_publish (F("homeassistant/switch/upower/bypass/config"), "");
 
-	mqtt_publish ("homeassistant/sensor/upower/utility_charging_current/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/utility_charging_voltage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/utility_charging_wattage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/pv_charging_current/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/pv_charging_voltage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/pv_charging_wattage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/battery_temp/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/battery_soc/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/battery_voltage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/inverter_voltage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/inverter_current/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/inverter_wattage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/inverter_frequency/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/bypass_voltage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/bypass_current/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/bypass_wattage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/utility_voltage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/utility_current/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/utility_wattage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/pv_voltage/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/pv_current/config", "");
-	mqtt_publish ("homeassistant/sensor/upower/pv_wattage/config", "");
-
-
-  //remove lagacy
-  mqtt_publish ("homeassistant/switch/epever/inverter/config", "");
-  mqtt_publish ("homeassistant/switch/epever/grid_charge/config", "");
-  mqtt_publish ("homeassistant/switch/epever/solar_charge/config", "");
-  mqtt_publish ("homeassistant/switch/epever/gridout_prio/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/utility_charging_current/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/utility_charging_voltage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/utility_charging_wattage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/pv_charging_current/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/pv_charging_voltage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/pv_charging_wattage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/battery_temp/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/battery_soc/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/battery_voltage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/inverter_voltage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/inverter_current/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/inverter_wattage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/inverter_frequency/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/bypass_voltage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/bypass_current/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/bypass_wattage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/utility_voltage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/utility_current/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/utility_wattage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/pv_voltage/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/pv_current/config", "");
-  mqtt_publish ("homeassistant/sensor/epever/pv_wattage/config", "");
-
-  // char msgbuf[1024];
+// 	mqtt_publish (F("homeassistant/sensor/upower/utility_charging_current/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/utility_charging_voltage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/utility_charging_wattage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/pv_charging_current/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/pv_charging_voltage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/pv_charging_wattage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/battery_temp/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/battery_soc/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/battery_voltage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/inverter_voltage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/inverter_current/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/inverter_wattage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/inverter_frequency/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/bypass_voltage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/bypass_current/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/bypass_wattage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/utility_voltage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/utility_current/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/utility_wattage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/pv_voltage/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/pv_current/config"), "");
+// 	mqtt_publish (F("homeassistant/sensor/upower/pv_wattage/config"), "");
 
 
-  mqtt_publish ("homeassistant/switch/upower/inverter/config", assemble_discover_switch_message("isw", "Inverter", "homeassistant/switch/upower/inverter/state", "homeassistant/switch/upower/inverter/set"), true);
-	mqtt_publish ("homeassistant/switch/upower/solar_charge/config", assemble_discover_switch_message("ssw", "Solar Charge", "homeassistant/switch/upower/solar_charge/state", "homeassistant/switch/upower/solar_charge/set"), true);
-	mqtt_publish ("homeassistant/switch/upower/grid_charge/config", assemble_discover_switch_message("gsw", "Grid Charge", "homeassistant/switch/upower/grid_charge/state", "homeassistant/switch/upower/grid_charge/set"), true);
-	mqtt_publish ("homeassistant/switch/upower/gridout_prio/config", assemble_discover_switch_message("bsw", "Grid Output Priority", "homeassistant/switch/upower/gridout_prio/state", "homeassistant/switch/upower/gridout_prio/set"), true);
-	//mqtt_publish ("homeassistant/switch/upower/storage/config", assemble_discover_switch_message("stsw", "Storage Mode", "homeassistant/switch/upower/storage/state", "homeassistant/switch/upower/storage/set"), true);
+//   //remove lagacy
+//   mqtt_publish (F("homeassistant/switch/epever/inverter/config"), "");
+//   mqtt_publish (F("homeassistant/switch/epever/grid_charge/config"), "");
+//   mqtt_publish (F("homeassistant/switch/epever/solar_charge/config"), "");
+//   mqtt_publish (F("homeassistant/switch/epever/gridout_prio/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/utility_charging_current/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/utility_charging_voltage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/utility_charging_wattage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/pv_charging_current/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/pv_charging_voltage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/pv_charging_wattage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/battery_temp/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/battery_soc/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/battery_voltage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/inverter_voltage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/inverter_current/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/inverter_wattage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/inverter_frequency/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/bypass_voltage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/bypass_current/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/bypass_wattage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/utility_voltage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/utility_current/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/utility_wattage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/pv_voltage/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/pv_current/config"), "");
+//   mqtt_publish (F("homeassistant/sensor/epever/pv_wattage/config"), "");
+
+//   // char msgbuf[1024];
+
+
+//   mqtt_publish (F("homeassistant/switch/upower/inverter/config"), assemble_discover_switch_message(F("isw"), F("Inverter"),F("homeassistant/switch/upower/inverter/state"),F("homeassistant/switch/upower/inverter/set")), true);
+// 	mqtt_publish (F("homeassistant/switch/upower/solar_charge/config"), assemble_discover_switch_message(F("ssw"), F("Solar Charge"),F("homeassistant/switch/upower/solar_charge/state"),F("homeassistant/switch/upower/solar_charge/set")), true);
+// 	mqtt_publish (F("homeassistant/switch/upower/grid_charge/config"), assemble_discover_switch_message(F("gsw"), F("Grid Charge"),F("homeassistant/switch/upower/grid_charge/state"),F("homeassistant/switch/upower/grid_charge/set")), true);
+// 	mqtt_publish (F("homeassistant/switch/upower/gridout_prio/config"), assemble_discover_switch_message(F("bsw"), F("Grid Output Priority"),F("homeassistant/switch/upower/gridout_prio/state"),F("homeassistant/switch/upower/gridout_prio/set")), true);
+// 	//mqtt_publish (F("homeassistant/switch/upower/storage/config"), assemble_discover_switch_message("stsw", "Storage Mode",F("homeassistant/switch/upower/storage/state"),F("homeassistant/switch/upower/storage/set")), true);
   
-  mqtt_publish ("homeassistant/sensor/upower/grid_in_current/config", assemble_discover_sensor_message("gic", "Grid In Current", "A", "energy", "homeassistant/sensor/upower/grid/state", "inCurrent"), true);
-  mqtt_publish ("homeassistant/sensor/upower/grid_in_wattage/config", assemble_discover_sensor_message("giw", "Grid In Wattage", "W", "energy", "homeassistant/sensor/upower/grid/state", "inWattage"), true);	
-	mqtt_publish ("homeassistant/sensor/upower/grid_in_voltage/config", assemble_discover_sensor_message("giv", "Grid In Voltage", "V", "energy", "homeassistant/sensor/upower/grid/state", "inVoltage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/grid_charge_current/config", assemble_discover_sensor_message("goc", "Grid Out Current", "A", "energy", "homeassistant/sensor/upower/grid/state", "outCurrent"), true);
-	mqtt_publish ("homeassistant/sensor/upower/grid_charge_wattage/config", assemble_discover_sensor_message("gow", "Grid Out Wattage", "W", "energy", "homeassistant/sensor/upower/grid/state", "outWattage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/grid_charge_voltage/config", assemble_discover_sensor_message("gov", "Grid Out Voltage", "V", "energy", "homeassistant/sensor/upower/grid/state", "outVoltage"), true);
-	mqtt_publish ("homeassistant/sensor/upower/grid_charge_accumulate/config", assemble_discover_sensor_message("goa", "Grid Out Accumulate", "kWh", "energy", "homeassistant/sensor/upower/grid/state", "accumulate"), true);
-  mqtt_publish ("homeassistant/sensor/upower/grid_temperature/config", assemble_discover_sensor_message("got", "Grid Temperature", "℃", "temperature", "homeassistant/sensor/upower/grid/state", "temperature"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_in_voltage/config", assemble_discover_sensor_message("piv", "PV In Voltage", "V", "energy", "homeassistant/sensor/upower/pv/state", "inVoltage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_in_current/config", assemble_discover_sensor_message("pic", "PV In Current", "A", "energy", "homeassistant/sensor/upower/pv/state", "inCurrent"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_in_wattage/config", assemble_discover_sensor_message("piw", "PV In Wattage", "W", "energy", "homeassistant/sensor/upower/pv/state", "inWattage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_charge_voltage/config", assemble_discover_sensor_message("pov", "PV Out Voltage", "V", "energy", "homeassistant/sensor/upower/pv/state", "outVoltage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_charge_current/config", assemble_discover_sensor_message("poc", "PV Out Current", "A", "energy", "homeassistant/sensor/upower/pv/state", "outCurrent"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_charge_wattage/config", assemble_discover_sensor_message("pow", "PV Out Wattage", "W", "energy", "homeassistant/sensor/upower/pv/state", "outWattage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_charge_accumulate/config", assemble_discover_sensor_message("poa", "PV Out Accumulate", "kWh", "energy", "homeassistant/sensor/upower/pv/state", "accumulate"), true);
-  mqtt_publish ("homeassistant/sensor/upower/pv_temperature/config", assemble_discover_sensor_message("pot", "PV Temperature", "℃", "temperature", "homeassistant/sensor/upower/pv/state", "temperature"), true);
-	mqtt_publish ("homeassistant/sensor/upower/inverter_in_voltage/config", assemble_discover_sensor_message("iiv", "Inverter In Voltage", "V", "energy", "homeassistant/sensor/upower/inverter/state", "inVoltage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/inverter_out_voltage/config", assemble_discover_sensor_message("iov", "Inverter Out Voltage", "V", "energy", "homeassistant/sensor/upower/inverter/state", "outVoltage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/inverter_out_current/config", assemble_discover_sensor_message("ioc", "Inverter Out Current", "A", "energy", "homeassistant/sensor/upower/inverter/state", "outCurrent"), true);
-  mqtt_publish ("homeassistant/sensor/upower/inverter_out_wattage/config", assemble_discover_sensor_message("iow", "Inverter Out Wattage", "W", "energy", "homeassistant/sensor/upower/inverter/state", "outWattage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/inverter_out_frequency/config", assemble_discover_sensor_message("iof", "Inverter Out Frequency", "Hz", "energy", "homeassistant/sensor/upower/inverter/state", "outFrequency"), true);
- // mqtt_publish ("homeassistant/sensor/upower/inverter_temperature/config", assemble_discover_sensor_message("iot", "Inverter Temperature", "℃", "temperature", "homeassistant/sensor/upower/inverter/state", "temperature"), true);
-	mqtt_publish ("homeassistant/sensor/upower/bypass_out_voltage/config", assemble_discover_sensor_message("byov", "Bypass In Voltage", "V", "energy", "homeassistant/sensor/upower/bypass/state", "inVoltage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/bypass_out_current/config", assemble_discover_sensor_message("byoc", "Bypass In Current", "A", "energy", "homeassistant/sensor/upower/bypass/state", "inCurrent"), true);
-  mqtt_publish ("homeassistant/sensor/upower/bypass_out_wattage/config", assemble_discover_sensor_message("oybw", "Bypass In Wattage", "W", "energy", "homeassistant/sensor/upower/bypass/state", "inWattage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/battery_out_voltage/config", assemble_discover_sensor_message("bov", "Battery Out Voltage", "V", "energy", "homeassistant/sensor/upower/battery/state", "outVoltage"), true);
-  mqtt_publish ("homeassistant/sensor/upower/battery_temperature/config", assemble_discover_sensor_message("bot", "Battery Temperature", "℃", "temperature", "homeassistant/sensor/upower/battery/state", "temperature"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/grid_in_current/config"), assemble_discover_sensor_message(F("gic"), F("Grid In Current"), "A", "energy",F("homeassistant/sensor/upower/grid/state"), "inCurrent"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/grid_in_wattage/config"), assemble_discover_sensor_message(F("giw"), F("Grid In Wattage"), "W", "energy",F("homeassistant/sensor/upower/grid/state"), "inWattage"), true);	
+// 	mqtt_publish (F("homeassistant/sensor/upower/grid_in_voltage/config"), assemble_discover_sensor_message(F("giv"), F("Grid In Voltage"), "V", "energy",F("homeassistant/sensor/upower/grid/state"), "inVoltage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/grid_charge_current/config"), assemble_discover_sensor_message(F("goc"), F("Grid Out Current"), "A", "energy",F("homeassistant/sensor/upower/grid/state"), "outCurrent"), true);
+// 	mqtt_publish (F("homeassistant/sensor/upower/grid_charge_wattage/config"), assemble_discover_sensor_message(F("gow"), F("Grid Out Wattage"), "W", "energy",F("homeassistant/sensor/upower/grid/state"), "outWattage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/grid_charge_voltage/config"), assemble_discover_sensor_message(F("gov"), F("Grid Out Voltage"), "V", "energy",F("homeassistant/sensor/upower/grid/state"), "outVoltage"), true);
+// 	mqtt_publish (F("homeassistant/sensor/upower/grid_charge_accumulate/config"), assemble_discover_sensor_message(F("goa"), F("Grid Out Accumulate"), "kWh", "energy",F("homeassistant/sensor/upower/grid/state"), "accumulate"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/grid_temperature/config"), assemble_discover_sensor_message(F("got"), F("Grid Temperature"), "℃", "temperature",F("homeassistant/sensor/upower/grid/state"), "temperature"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/pv_in_voltage/config"), assemble_discover_sensor_message(F("piv"), F("PV In Voltage"), "V", "energy",F("homeassistant/sensor/upower/pv/state"), "inVoltage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/pv_in_current/config"), assemble_discover_sensor_message(F("pic"), F("PV In Current"), "A", "energy",F("homeassistant/sensor/upower/pv/state"), "inCurrent"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/pv_in_wattage/config"), assemble_discover_sensor_message(F("piw"), F("PV In Wattage"), "W", "energy",F("homeassistant/sensor/upower/pv/state"), "inWattage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/pv_charge_voltage/config"), assemble_discover_sensor_message(F("pov"), F("PV Out Voltage"), "V", "energy",F("homeassistant/sensor/upower/pv/state"), "outVoltage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/pv_charge_current/config"), assemble_discover_sensor_message(F("poc"), F("PV Out Current"), "A", "energy",F("homeassistant/sensor/upower/pv/state"), "outCurrent"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/pv_charge_wattage/config"), assemble_discover_sensor_message(F("pow"), F("PV Out Wattage"), "W", "energy",F("homeassistant/sensor/upower/pv/state"), "outWattage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/pv_charge_accumulate/config"), assemble_discover_sensor_message(F("poa"), F("PV Out Accumulate"), "kWh", "energy",F("homeassistant/sensor/upower/pv/state"), "accumulate"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/pv_temperature/config"), assemble_discover_sensor_message(F("pot"), F("PV Temperature"), "℃", "temperature",F("homeassistant/sensor/upower/pv/state"), "temperature"), true);
+// 	mqtt_publish (F("homeassistant/sensor/upower/inverter_in_voltage/config"), assemble_discover_sensor_message(F("iiv"), F("Inverter In Voltage"), "V", "energy",F("homeassistant/sensor/upower/inverter/state"), "inVoltage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/inverter_out_voltage/config"), assemble_discover_sensor_message(F("iov"), F("Inverter Out Voltage"), "V", "energy",F("homeassistant/sensor/upower/inverter/state"), "outVoltage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/inverter_out_current/config"), assemble_discover_sensor_message(F("ioc"), F("Inverter Out Current"), "A", "energy",F("homeassistant/sensor/upower/inverter/state"), "outCurrent"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/inverter_out_wattage/config"), assemble_discover_sensor_message(F("iow"), F("Inverter Out Wattage"), "W", "energy",F("homeassistant/sensor/upower/inverter/state"), "outWattage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/inverter_out_frequency/config"), assemble_discover_sensor_message(F("iof"), F("Inverter Out Frequency"), "Hz", "energy",F("homeassistant/sensor/upower/inverter/state"), "outFrequency"), true);
+//  // mqtt_publish (F("homeassistant/sensor/upower/inverter_temperature/config"), assemble_discover_sensor_message("iot", "Inverter Temperature", "℃", "temperature",F("homeassistant/sensor/upower/inverter/state"), "temperature"), true);
+// 	mqtt_publish (F("homeassistant/sensor/upower/bypass_out_voltage/config"), assemble_discover_sensor_message(F("byov"), F("Bypass In Voltage"), "V", "energy",F("homeassistant/sensor/upower/bypass/state"), "inVoltage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/bypass_out_current/config"), assemble_discover_sensor_message(F("byoc"), F("Bypass In Current"), "A", "energy",F("homeassistant/sensor/upower/bypass/state"), "inCurrent"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/bypass_out_wattage/config"), assemble_discover_sensor_message(F("oybw"), F("Bypass In Wattage"), "W", "energy",F("homeassistant/sensor/upower/bypass/state"), "inWattage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/battery_out_voltage/config"), assemble_discover_sensor_message(F("bov"), F("Battery Out Voltage"), "V", "energy",F("homeassistant/sensor/upower/battery/state"), "outVoltage"), true);
+//   mqtt_publish (F("homeassistant/sensor/upower/battery_temperature/config"), assemble_discover_sensor_message(F("bot"), F("Battery Temperature"), "℃", "temperature",F("homeassistant/sensor/upower/battery/state"), "temperature"), true);
 
   return 0;
 }
 
 int Upower::publish_switch(){
-  return mqtt_publish("homeassistant/switch/upower/inverter/state", switch_state[INVERTER]?"ON":"OFF") &&
-  mqtt_publish("homeassistant/switch/upower/solar_charge/state", switch_state[SOLAR_CHARGE]?"ON":"OFF") &&
-  mqtt_publish("homeassistant/switch/upower/grid_charge/state", switch_state[GRID_CHARGE]?"ON":"OFF") &&
-  mqtt_publish("homeassistant/switch/upower/gridout_prio/state", switch_state[GRID_PRIO]?"ON":"OFF");
+  return mqtt_publish(F("homeassistant/switch/upower/inverter/state"), switch_state[INVERTER]?"ON":"OFF") &&
+  mqtt_publish(F("homeassistant/switch/upower/solar_charge/state"), switch_state[SOLAR_CHARGE]?"ON":"OFF") &&
+  mqtt_publish(F("homeassistant/switch/upower/grid_charge/state"), switch_state[GRID_CHARGE]?"ON":"OFF") &&
+  mqtt_publish(F("homeassistant/switch/upower/gridout_prio/state"), switch_state[GRID_PRIO]?"ON":"OFF");
 }
 int Upower::publish_data(){
   char buf[1024];
@@ -179,20 +178,20 @@ int Upower::publish_data(){
 
 
   serializeJson(grid_data, buf);
-  mqtt_publish("homeassistant/sensor/upower/grid/state", buf);
+  mqtt_publish(F("homeassistant/sensor/upower/grid/state"), buf);
 
   serializeJson(pv_data, buf);
-  mqtt_publish("homeassistant/sensor/upower/pv/state", buf);
+  mqtt_publish(F("homeassistant/sensor/upower/pv/state"), buf);
   
   serializeJson(inverter_data, buf);
-  mqtt_publish("homeassistant/sensor/upower/inverter/state", buf);
+  mqtt_publish(F("homeassistant/sensor/upower/inverter/state"), buf);
 
   
   serializeJson(bypass_data, buf);
-  mqtt_publish("homeassistant/sensor/upower/bypass/state", buf);
+  mqtt_publish(F("homeassistant/sensor/upower/bypass/state"), buf);
 
   serializeJson(battery_data, buf);
-  mqtt_publish("homeassistant/sensor/upower/battery/state", buf);
+  mqtt_publish(F("homeassistant/sensor/upower/battery/state"), buf);
 
   return 0;
 }

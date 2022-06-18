@@ -4,62 +4,60 @@
 #include "common.h"
 
 
-const char* reason_err_charge[] = {
-    "is turn off", 
-    "is turn on", 
-    "over charge protect", 
-    "over current protect", 
-    "battery is full charged", 
-    "the total voltage of battery pack is over", 
-    "battery over temperature", 
-    "the MOSFET over temperature", 
-    "Abnormal current", 
-    "Balanced string out (a battery is not detected)", 
-    "Motherboard over temperature", 
-    "Discharge MOSFET abnormality", 
-    "Manually turn off"
-};
-
-const char* reason_err_discharge[] = {
-	"turn off",
-	"turn on",
-	"over discharge protect (single battery)",
-	"over current protect",
-	"over discharge protect ( battery pack)",
-	"battery over temperature",
-	"the MOSFET over temperature",
-	"Abnormal current",
-	"Balanced string out (a battery is not detected)",
-	"Motherboard over temperature",
-	"charge MOSFET turn on",
-	"short protect",
-	"Discharge MOSFET abnormality",
-	"Start exception",
-	"Manually turn off"
-};
-
-const char* reason_err_balance[] = {
-	"turn off",
-	"Exceeding limit trigger balance",
-	"When charging, the voltage difference is too big, trigger balance ",
-	"balance over temperature",
-	"Automatic balance",
-	"Motherboard over temperature"
-};
+String reason_err_charge[13];
+String reason_err_discharge[15];
+String reason_err_balance[6];
 
 
 Antbms::Antbms(PubSubClient *_mqttClient, SoftwareSerial *_serial){
     // SoftwareSerial serial;
     // serial->begin(19200, SWSERIAL_8N1, 5, 16, false, 256);
+
+    reason_err_charge[0] = F("is turn off"); 
+    reason_err_charge[1] = F("is turn on");
+    reason_err_charge[2] = F("over charge protect");
+    reason_err_charge[3] = F("over current protect");
+    reason_err_charge[4] = F("battery is full charged");
+    reason_err_charge[5] = F("the total voltage of battery pack is over");
+    reason_err_charge[6] = F("battery over temperature");
+    reason_err_charge[7] = F("the MOSFET over temperature");
+    reason_err_charge[8] = F("Abnormal current");
+    reason_err_charge[9] = F("Balanced string out (a battery is not detected)");
+    reason_err_charge[10] = F("Motherboard over temperature"); 
+    reason_err_charge[11] = F("Discharge MOSFET abnormality");
+    reason_err_charge[12] = F("Manually turn off");
+
     
+    reason_err_discharge[0] = F("turn off");
+    reason_err_discharge[1] = F("turn on");
+    reason_err_discharge[2] = F("over discharge protect (single battery)");
+    reason_err_discharge[3] = F("over current protect");
+    reason_err_discharge[4] = F("over discharge protect ( battery pack)");
+    reason_err_discharge[5] = F("battery over temperature");
+    reason_err_discharge[6] = F("the MOSFET over temperature");
+    reason_err_discharge[7] = F("Abnormal current");
+    reason_err_discharge[8] = F("Balanced string out (a battery is not detected)");
+    reason_err_discharge[9] = F("Motherboard over temperature");
+    reason_err_discharge[10] = F("charge MOSFET turn on");
+    reason_err_discharge[11] = F("short protect");
+    reason_err_discharge[12] = F("Discharge MOSFET abnormality");
+    reason_err_discharge[13] = F("Start exception");
+    reason_err_discharge[14] = F("Manually turn off");
+
+    reason_err_balance[0] = F("turn off");
+    reason_err_balance[1] = F("Exceeding limit trigger balance");
+    reason_err_balance[2] = F("When charging; the voltage difference is too big; trigger balance ");
+    reason_err_balance[3] = F("balance over temperature");
+    reason_err_balance[4] = F("Automatic balance");
+    reason_err_balance[5] = F("Motherboard over temperature");
 	// modbus = _modbus;
 	serial = _serial;
     mqttClient = _mqttClient;
 
     subscribe_size = 3;
-    subscribe_list[0] = "homeassistant/switch/antbms/charge_mosfet/set";
-    subscribe_list[1] = "homeassistant/switch/antbms/discharge_mosfet/set";
-    subscribe_list[2] = "homeassistant/switch/antbms/sleep_mode/set";
+    subscribe_list[0] = ("homeassistant/switch/antbms/charge_mosfet/set");
+    subscribe_list[1] = ("homeassistant/switch/antbms/discharge_mosfet/set");
+    subscribe_list[2] = ("homeassistant/switch/antbms/sleep_mode/set");
 
 
     fVoltageAll = 0.0;
@@ -84,103 +82,76 @@ Antbms::Antbms(PubSubClient *_mqttClient, SoftwareSerial *_serial){
     comm_info.baudrate=19200;
     comm_info.slaveID=0;
     sleep_mode = false;
+
+    
+    device_sensor_root="homeassistant/sensor/antbms";
+    device_switch_root = "homeassistant/switch/antbms";
+    
 }
 
 int Antbms::setup_entity(){
+
     
-    char *strbuf = (char*)malloc(sizeof(char)*400);
+//     mqtt_publish (F("homeassistant/sensor/antbms/temp_mosfet/config"), "", true);
+//     mqtt_publish (F("homeassistant/sensor/antbms/temp_balance/config"), "", true);
+//     mqtt_publish (F("homeassistant/sensor/antbms/temp_cell1/config"), "", true);
+//     mqtt_publish (F("homeassistant/sensor/antbms/temp_cell5/config"), "", true);
+//     mqtt_publish (F("homeassistant/sensor/antbms/battery_discharging_voltage/config"), "", true);
+//     mqtt_publish (F("homeassistant/sensor/antbms/battery_discharging_current/config"), "", true);
+//     mqtt_publish (F("homeassistant/sensor/antbms/battery_discharging_wattage/config"), "", true);
+//     mqtt_publish (F("homeassistant/sensor/antbms/battery_capacity/config"), "", true);
 
-    char msgbuf[1024];
+//     mqtt_publish (F("homeassistant/sensor/antbms/bms_soc/config"), "", true);
 
-    for(int i = 1 ; i <= NUM_MAX_CELL; i++){
-    sprintf(strbuf, "homeassistant/sensor/antbms/cell%d/config\0", i, true);
-    mqtt_publish(strbuf, "");
-    }
-    mqtt_publish ("homeassistant/sensor/antbms/temp_mosfet/config", "", true);
-    mqtt_publish ("homeassistant/sensor/antbms/temp_balance/config", "", true);
-    mqtt_publish ("homeassistant/sensor/antbms/temp_cell1/config", "", true);
-    mqtt_publish ("homeassistant/sensor/antbms/temp_cell5/config", "", true);
-    mqtt_publish ("homeassistant/sensor/antbms/battery_discharging_voltage/config", "", true);
-    mqtt_publish ("homeassistant/sensor/antbms/battery_discharging_current/config", "", true);
-    mqtt_publish ("homeassistant/sensor/antbms/battery_discharging_wattage/config", "", true);
-    mqtt_publish ("homeassistant/sensor/antbms/battery_capacity/config", "", true);
-
-    mqtt_publish ("homeassistant/sensor/antbms/bms_soc/config", "", true);
-
-    mqtt_publish ("homeassistant/switch/antbms/charge_mosfet/config", "", true);
-    mqtt_publish ("homeassistant/switch/antbms/discharge_mosfet/config", "", true);
-    mqtt_publish ("homeassistant/switch/antbms/cell_diff/config", "", true);
-    mqtt_publish ("homeassistant/switch/antbms/sleep_mode/config", "", true);
+//     mqtt_publish (F("homeassistant/switch/antbms/charge_mosfet/config"), "", true);
+//     mqtt_publish (F("homeassistant/switch/antbms/discharge_mosfet/config"), "", true);
+//     mqtt_publish (F("homeassistant/switch/antbms/cell_diff/config"), "", true);
+//     mqtt_publish (F("homeassistant/switch/antbms/sleep_mode/config"), "", true);
     
   
-    for(int i = 1 ; i <= NUM_MAX_CELL; i++){
-        sprintf(strbuf, "homeassistant/sensor/antbms/cell%d/config\0", i);
-        mqtt_publish(strbuf, "", true);
-        sprintf(strbuf, "homeassistant/sensor/antbms/cell_ohm%d/config\0", i);
-        mqtt_publish(strbuf, "", true);
-    }
-	mqtt_publish ("homeassistant/sensor/antbms/temp_mosfet/config", "", true);
-	mqtt_publish ("homeassistant/sensor/antbms/temp_balance/config", "", true);
-	mqtt_publish ("homeassistant/sensor/antbms/temp_cell1/config", "", true);
-	mqtt_publish ("homeassistant/sensor/antbms/temp_cell5/config", "", true);
-	mqtt_publish ("homeassistant/sensor/antbms/battery_discharging_voltage/config", "", true);
-	mqtt_publish ("homeassistant/sensor/antbms/battery_discharging_current/config", "", true);
-	mqtt_publish ("homeassistant/sensor/antbms/battery_discharging_wattage/config", "", true);
-	mqtt_publish ("homeassistant/sensor/antbms/battery_capacity/config", "", true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/temp_mosfet/config"), "", true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/temp_balance/config"), "", true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/temp_cell1/config"), "", true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/temp_cell5/config"), "", true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/battery_discharging_voltage/config"), "", true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/battery_discharging_current/config"), "", true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/battery_discharging_wattage/config"), "", true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/battery_capacity/config"), "", true);
 
-	mqtt_publish ("homeassistant/sensor/antbms/bms_soc/config", "", true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/bms_soc/config"), "", true);
 
-	mqtt_publish ("homeassistant/switch/antbms/charge_mosfet/config", "", true);
-	mqtt_publish ("homeassistant/switch/antbms/discharge_mosfet/config", "", true);
-    mqtt_publish ("homeassistant/switch/antbms/cell_diff/config", "", true);
+// 	mqtt_publish (F("homeassistant/switch/antbms/charge_mosfet/config"), "", true);
+// 	mqtt_publish (F("homeassistant/switch/antbms/discharge_mosfet/config"), "", true);
+//     mqtt_publish (F("homeassistant/switch/antbms/cell_diff/config"), "", true);
 
     
-	mqtt_publish ("homeassistant/switch/antbms/charge_mosfet/config", assemble_discover_switch_message("chm", "Charge Mosfet", "homeassistant/switch/antbms/charge_mosfet/state", "homeassistant/switch/antbms/charge_mosfet/set", msgbuf), true);
-	mqtt_publish ("homeassistant/switch/antbms/discharge_mosfet/config", assemble_discover_switch_message("dim", "Discharge Mosfet", "homeassistant/switch/antbms/discharge_mosfet/state", "homeassistant/switch/antbms/discharge_mosfet/set", msgbuf), true);
-	mqtt_publish ("homeassistant/switch/antbms/sleep_mode/config", assemble_discover_switch_message("slpm", "Sleep Mode", "homeassistant/switch/antbms/sleep_mode/state", "homeassistant/switch/antbms/sleep_mode/set", msgbuf), true);
+// 	mqtt_publish (F("homeassistant/switch/antbms/charge_mosfet/config"), assemble_discover_switch_message("chm", "Charge Mosfet", F("homeassistant/switch/antbms/charge_mosfet/state"), F("homeassistant/switch/antbms/charge_mosfet/set")), true);
+// 	mqtt_publish (F("homeassistant/switch/antbms/discharge_mosfet/config"), assemble_discover_switch_message("dim", "Discharge Mosfet", F("homeassistant/switch/antbms/discharge_mosfet/state"), F("homeassistant/switch/antbms/discharge_mosfet/set")), true);
+// 	mqtt_publish (F("homeassistant/switch/antbms/sleep_mode/config"), assemble_discover_switch_message("slpm", "Sleep Mode", F("homeassistant/switch/antbms/sleep_mode/state"), F("homeassistant/switch/antbms/sleep_mode/set")), true);
 
-	mqtt_publish ("homeassistant/sensor/antbms/temp_mosfet/config", assemble_discover_sensor_message("tm", "Temp Mosfet", "°C", "temperature", "homeassistant/sensor/antbms/state", "temp_mosfet", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/temp_balance/config", assemble_discover_sensor_message("tb", "Temp Balance", "°C", "temperature", "homeassistant/sensor/antbms/state", "temp_balance", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/temp_cell1/config", assemble_discover_sensor_message("tc1", "Temp Cell1", "°C", "temperature", "homeassistant/sensor/antbms/state", "temp_cell1", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/temp_cell5/config", assemble_discover_sensor_message("tc5", "Temp Cell5", "°C", "temperature", "homeassistant/sensor/antbms/state", "temp_cell5", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/battery_discharging_voltage/config", assemble_discover_sensor_message("bdv", "Battery Dischg Voltage", "V", "power", "homeassistant/sensor/antbms/state", "battery_discharging_voltage", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/battery_discharging_current/config", assemble_discover_sensor_message("bdc", "Battery Dischg Current", "A", "power", "homeassistant/sensor/antbms/state", "battery_discharging_current", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/battery_discharging_wattage/config", assemble_discover_sensor_message("bdw", "Battery Dischg Wattage", "W", "power", "homeassistant/sensor/antbms/state", "battery_discharging_wattage", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/battery_capacity/config", assemble_discover_sensor_message("btc", "Battery Capacity", "Ah", "battery", "homeassistant/sensor/antbms/state", "battery_capacity", msgbuf), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/temp_mosfet/config"), assemble_discover_sensor_message("tm", "Temp Mosfet", "°C", "temperature", F("homeassistant/sensor/antbms/state"), "temp_mosfet"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/temp_balance/config"), assemble_discover_sensor_message("tb", "Temp Balance", "°C", "temperature", F("homeassistant/sensor/antbms/state"), "temp_balance"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/temp_cell1/config"), assemble_discover_sensor_message("tc1", "Temp Cell1", "°C", "temperature", F("homeassistant/sensor/antbms/state"), "temp_cell1"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/temp_cell5/config"), assemble_discover_sensor_message("tc5", "Temp Cell5", "°C", "temperature", F("homeassistant/sensor/antbms/state"), "temp_cell5"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/battery_discharging_voltage/config"), assemble_discover_sensor_message("bdv", "Battery Dischg Voltage", "V", "power", F("homeassistant/sensor/antbms/state"), "battery_discharging_voltage"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/battery_discharging_current/config"), assemble_discover_sensor_message("bdc", "Battery Dischg Current", "A", "power", F("homeassistant/sensor/antbms/state"), "battery_discharging_current"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/battery_discharging_wattage/config"), assemble_discover_sensor_message("bdw", "Battery Dischg Wattage", "W", "power", F("homeassistant/sensor/antbms/state"), "battery_discharging_wattage"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/battery_capacity/config"), assemble_discover_sensor_message("btc", "Battery Capacity", "Ah", "battery", F("homeassistant/sensor/antbms/state"), "battery_capacity"), true);
 
-	mqtt_publish ("homeassistant/sensor/antbms/charge_mosfet_status_describe/config", assemble_discover_sensor_message("cms", "Charge Mosfet Status", ".", "power", "homeassistant/sensor/antbms/state", "charge_mosfet_status_describe", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/discharge_mosfet_status_describe/config", assemble_discover_sensor_message("dms", "Discharge Mosfet Status", ".", "power", "homeassistant/sensor/antbms/state", "discharge_mosfet_status_describe", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/bms_soc/config", assemble_discover_sensor_message("bsoc", "BMS SoC", "%", "power", "homeassistant/sensor/antbms/state", "bms_soc", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/balance_status_describe/config", assemble_discover_sensor_message("bals", "Balance Status", ".", "power", "homeassistant/sensor/antbms/state", "balance_status_describe", msgbuf), true);
-	mqtt_publish ("homeassistant/sensor/antbms/cell_diff/config", assemble_discover_sensor_message("diff", "Cell Diff", "V", "power", "homeassistant/sensor/antbms/state", "cell_diff", msgbuf), true);
-  mqtt_publish ("homeassistant/sensor/antbms/battery_cycle/config", assemble_discover_sensor_message("batc", "Battery Cycle", "Ah", "power", "homeassistant/sensor/antbms/state", "battery_cycle", msgbuf), true);
-  mqtt_publish ("homeassistant/sensor/antbms/battery_running_seconds/config", assemble_discover_sensor_message("Battery Running Seconds", "batrs", "s", "power", "homeassistant/sensor/antbms/state", "battery_running_seconds", msgbuf), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/charge_mosfet_status_describe/config"), assemble_discover_sensor_message("cms", "Charge Mosfet Status", ".", "power", F("homeassistant/sensor/antbms/state"), "charge_mosfet_status_describe"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/discharge_mosfet_status_describe/config"), assemble_discover_sensor_message("dms", "Discharge Mosfet Status", ".", "power", F("homeassistant/sensor/antbms/state"), "discharge_mosfet_status_describe"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/bms_soc/config"), assemble_discover_sensor_message("bsoc", "BMS SoC", "%", "power", F("homeassistant/sensor/antbms/state"), "bms_soc"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/balance_status_describe/config"), assemble_discover_sensor_message("bals", "Balance Status", ".", "power", F("homeassistant/sensor/antbms/state"), "balance_status_describe"), true);
+// 	mqtt_publish (F("homeassistant/sensor/antbms/cell_diff/config"), assemble_discover_sensor_message("diff", "Cell Diff", "V", "power", F("homeassistant/sensor/antbms/state"), "cell_diff"), true);
+//   mqtt_publish (F("homeassistant/sensor/antbms/battery_cycle/config"), assemble_discover_sensor_message("batc", "Battery Cycle", "Ah", "power", F("homeassistant/sensor/antbms/state"), "battery_cycle"), true);
+//   mqtt_publish (F("homeassistant/sensor/antbms/battery_running_seconds/config"), assemble_discover_sensor_message("Battery Running Seconds", "batrs", "s", "power", F("homeassistant/sensor/antbms/state"), "battery_running_seconds"), true);
 
-//	free(strbuf);
-	
-	for(int i = 1 ; i <= NUM_MAX_CELL; i++){
-		sprintf(strbuf, "homeassistant/sensor/antbms/cell%d/config\0", i);
-		char strbuf2[20];
-		char strbuf3[20];
-		char strbuf4[20];
-		Serial.printf("start");
-		sprintf(strbuf2, "cell%d", i);
-		sprintf(strbuf3, "Cell %d", i);
-		sprintf(strbuf4, "cell%d", i);
-		mqtt_publish(strbuf, assemble_discover_sensor_message(strbuf2, strbuf3, "V", "power", "homeassistant/sensor/antbms/state", strbuf4, msgbuf), true);
-	}
-
-//   for(int i = 1 ; i <= NUM_MAX_CELL; i++){
-//     sprintf(strbuf, "homeassistant/sensor/antbms/cell_ohm%d/config\0", i);
-//     char strbuf2[20];
-//     char strbuf3[20];
-//     char strbuf4[20];
-//     Serial.printf("start");
-//     sprintf(strbuf2, "cellohm%d", i);
-//     sprintf(strbuf3, "Cell Ohm %d", i);
-//     sprintf(strbuf4, "cellohm%d", i);
-//     mqtt_publish(strbuf, assemble_discover_sensor_message(strbuf2, strbuf3, "mΩ", "power", "homeassistant/sensor/antbms/state", strbuf4, msgbuf), true);
-//   }
+    
+// for(int i = 1 ; i <= NUM_MAX_CELL; i++){
+//     mqtt_publish(String(F("homeassistant/sensor/antbms/cell"))+i+String(F("/config")), "");
+//     // mqtt_publish(String(F("homeassistant/sensor/antbms/cell"))+i+String(F("/config")), "");
+//     mqtt_publish(String(F("homeassistant/sensor/antbms/cell"))+i+String(F("/config\0")), assemble_discover_sensor_message(String("cell")+i, String("Cell ")+i, "V", "power", "homeassistant/sensor/antbms/state", String("cell")+i), true);
+// }
     return 0;
 }
 
@@ -284,9 +255,9 @@ void Antbms::parseBMSData(char* bms_data, int size){
         temp_cell1 = (double)((int16_t)bms_data[95] << 8       | (int16_t)bms_data[96]);
         temp_cell5 = (double)((int16_t)bms_data[97] << 8       | (int16_t)bms_data[98]);
 
-		charge_mosfet_status_describe = reason_err_charge[(int)(bms_data[103])];
-        discharge_mosfet_status_describe = reason_err_discharge[(int)(bms_data[104])];
-        balance_status_describe = reason_err_discharge[(int)(bms_data[105])];
+		// charge_mosfet_status_describe = reason_err_charge[(int)(bms_data[103])];
+        // discharge_mosfet_status_describe = reason_err_discharge[(int)(bms_data[104])];
+        // balance_status_describe = reason_err_discharge[(int)(bms_data[105])];
 
 		charge_mosfet_status=((uint16_t)bms_data[103]) == 1;
 		discharge_mosfet_status=((uint16_t)bms_data[104]) == 1;
@@ -298,7 +269,7 @@ void Antbms::parseBMSData(char* bms_data, int size){
 
 int Antbms::update_data(){
 //    prepareSerial();
-    Serial.println("getBMSAttribute");
+    Serial.println(F("getBMSAttribute"));
 	
 	
 	int cnt = 0;
@@ -463,7 +434,7 @@ int Antbms::publish_data(){
     // memcpy(buf, retVal, strlen(buf));
 
     // Serial.printf("mqtt send : %s", buf);
-    mqtt_publish ("homeassistant/sensor/antbms/state", buf);
+    mqtt_publish (device_sensor_root + "/state", buf);
     return 0;
 }
 
@@ -471,21 +442,21 @@ int Antbms::publish_data(){
 int Antbms::publish_switch(){
     char buf[1000];
     if(charge_mosfet_status){
-        mqtt_publish("homeassistant/switch/antbms/charge_mosfet/state", "ON");
+        mqtt_publish(F("homeassistant/switch/antbms/charge_mosfet/state"), F("ON"));
     }else{
-        mqtt_publish("homeassistant/switch/antbms/charge_mosfet/state", "OFF");
+        mqtt_publish(F("homeassistant/switch/antbms/charge_mosfet/state"), F("OFF"));
     }
 
     if(discharge_mosfet_status){
-        mqtt_publish("homeassistant/switch/antbms/discharge_mosfet/state", "ON");
+        mqtt_publish(F("homeassistant/switch/antbms/discharge_mosfet/state"), F("ON"));
     }else{
-        mqtt_publish("homeassistant/switch/antbms/discharge_mosfet/state", "OFF");
+        mqtt_publish(F("homeassistant/switch/antbms/discharge_mosfet/state"), F("OFF"));
     }
 
     if(sleep_mode){
-        mqtt_publish("homeassistant/switch/antbms/sleep_mode/state", "ON");
+        mqtt_publish(F("homeassistant/switch/antbms/sleep_mode/state"), F("ON"));
     }else{
-        mqtt_publish("homeassistant/switch/antbms/sleep_mode/state", "OFF");
+        mqtt_publish(F("homeassistant/switch/antbms/sleep_mode/state"), F("OFF"));
     }
 
     return 0;
