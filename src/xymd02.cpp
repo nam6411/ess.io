@@ -130,7 +130,7 @@ int XYMD02::publish_data(){
 }
 
 int XYMD02::update_data(){
-  // prepareSerial();
+  prepareSerial();
   prepareModbus();
   int nResult = modbus->readInputRegisters(0x01, 0x02);
   if(nResult == modbus->ku8MBSuccess ){

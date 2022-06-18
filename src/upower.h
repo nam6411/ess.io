@@ -49,8 +49,8 @@ class Upower  : public Device {
     public: 
         bool switch_state[NUM_OF_SWITCH] = {0,};
 
-//        Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial *_serial);
-        Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus);
+       Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial *_serial);
+        // Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus);
         
         virtual int publish_switch();
         virtual int publish_data();

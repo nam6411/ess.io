@@ -84,7 +84,7 @@ int RtuSwMk1::update_data(){
 }
 
 int RtuSwMk1::update_switch(){
-	// prepareSerial();
+	prepareSerial();
 	prepareModbus();
 	printf("prepared");
   char nResult;
@@ -112,7 +112,7 @@ int RtuSwMk1::update_switch(){
 }
 
 int RtuSwMk1::change_switch(const char* switch_name, const char* onoff){
-	// prepareSerial();
+	prepareSerial();
  	prepareModbus();
 	int add= atoi(switch_name);
 	int rtuDevNo = add/10;

@@ -82,7 +82,7 @@ int RtuSwMk2::update_data(){
 }
 
 int RtuSwMk2::update_switch(){
-	// prepareSerial();
+	prepareSerial();
   	prepareModbus();
     char nResult;
 	modbus->clearResponseBuffer();
@@ -115,7 +115,7 @@ int RtuSwMk2::update_switch(){
 
 
 int RtuSwMk2::change_switch(const char* switch_name, const char* onoff){
-	// prepareSerial();
+	prepareSerial();
   	prepareModbus();
 	int add= atoi(switch_name);
 	int rtuDevNo = add/10;

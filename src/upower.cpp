@@ -8,11 +8,11 @@ double round_range(double value) {
   return (int)(value * 100 + 0.5) / 100.0;
 }
 
-Upower::Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus/*, SoftwareSerial *_serial*/){
+Upower::Upower(PubSubClient *_mqttClient, ModbusMaster *_modbus, SoftwareSerial *_serial){
   mqttClient = _mqttClient;
 
 	modbus = _modbus;
-//	serial = _serial;
+	serial = _serial;
   printf("modbus : %p", modbus);
   subscribe_size = 4 ;
 	subscribe_list[0] = (char*)"homeassistant/switch/upower/inverter/set";
@@ -217,8 +217,8 @@ unsigned char Upower::getUpowerStateFrom(int addr, int size, uint16_t *buf){
 }
 
 int Upower::update_data(){
-//    prepareSerial();
-//    prepareModbus();
+   prepareSerial();
+   prepareModbus();
     // prepareRS485();
     uint16_t ucValue3500[19]={0,};
     uint16_t ucValue3519[20]={0,};
@@ -285,8 +285,8 @@ int Upower::update_data(){
 }
 
 int Upower::update_switch(){
-  //  prepareSerial();
-  //  prepareModbus();
+   prepareSerial();
+   prepareModbus();
     
     unsigned char results[NUM_OF_SWITCH];
 
@@ -342,8 +342,8 @@ switchType getStringSwitchEnum(const char* switch_name){
 }
 
 int Upower::change_switch(const char* switch_name, const char* onoff){  
-//  prepareSerial();
-//  prepareModbus();
+ prepareSerial();
+ prepareModbus();
   Serial.printf("%s turn %s\n", switch_name, onoff);
 
   int addr = 0;

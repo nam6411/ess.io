@@ -240,9 +240,9 @@ void setup()
 
 	Serial.println("Start Devices initialize");
 	#if defined(ESP8266)
-	// serialUpower.begin(115200, SWSERIAL_8N1, 13, 12, false, 256);//upower 라인 : 22, 23
+	serialUpower.begin(115200, SWSERIAL_8N1, 13, 12, false, 256);//upower 라인 : 22, 23
 	serialBms.begin(19200, SWSERIAL_8N1, 5, 16, false, 256);//bms 라인 : 18, 19
-	serialSwitch.begin(9600, SWSERIAL_8N1, 13, 12, false, 256);//sw 라인 : 16, 17
+	// serialSwitch.begin(9600, SWSERIAL_8N1, 13, 12, false, 256);//sw 라인 : 16, 17
 	#elif defined(ESP32)
 	// serialUpower.begin(115200, SWSERIAL_8N1, 22, 23, false, 256);//sw 라인 : 16, 17
 	serialBms.begin(9600, SWSERIAL_8N1, 16, 17, false, 256);//bms 라인 : 18, 19
@@ -262,23 +262,22 @@ void setup()
 	#ifdef ESP8266
 
 
-	// modbusUpower.postTransmission(modbusUpowerPostTransmission);
-	// modbusUpower.preTransmission(modbusUpowerPreTransmission);
+	modbusUpower.postTransmission(modbusUpowerPostTransmission);
+	modbusUpower.preTransmission(modbusUpowerPreTransmission);
 	modbusSwitch.postTransmission(modbusSwitchPostTransmission);
 	modbusSwitch.preTransmission(modbusSwitchPreTransmission);
 	
-	// modbusUpower.begin(10, serialUpower);
-	modbusSwitch.begin(255, serialSwitch)
-	;
+	modbusUpower.begin(10, serialUpower);
+	modbusSwitch.begin(255, serialUpower);
 
 	//for 572UT
-	// devices[numOfDevice++] = new Upower(&mqttClient,  &modbusUpower);
+	devices[numOfDevice++] = new Upower(&mqttClient,  &modbusUpower, &serialUpower);
 	devices[numOfDevice++] = new Antbms(&mqttClient, &serialBms);
-	devices[numOfDevice++] = new RtuSwMk1(&mqttClient, &modbusSwitch, &serialSwitch, 1, 1, "Equalize");
-	devices[numOfDevice++] = new RtuSwMk2(&mqttClient, &modbusSwitch, &serialSwitch, 2, 3, "Water drain1", "Fridge", "Around View");
-	devices[numOfDevice++] = new RtuSwMk2(&mqttClient, &modbusSwitch, &serialSwitch, 3, 4, "Water drain2", "External Pump", "Fill", "Heating Preheat");
-	devices[numOfDevice++] = new XYMD02(&mqttClient, &modbusSwitch, &serialSwitch, 0xb3);
-	devices[numOfDevice++] = new XYMD02(&mqttClient, &modbusSwitch, &serialSwitch, 0xb4);
+	devices[numOfDevice++] = new RtuSwMk1(&mqttClient, &modbusSwitch, &serialUpower, 1, 1, "Equalize");
+	devices[numOfDevice++] = new RtuSwMk2(&mqttClient, &modbusSwitch, &serialUpower, 2, 3, "Water drain1", "Fridge", "Around View");
+	devices[numOfDevice++] = new RtuSwMk2(&mqttClient, &modbusSwitch, &serialUpower, 3, 4, "Water drain2", "External Pump", "Fill", "Heating Preheat");
+	devices[numOfDevice++] = new XYMD02(&mqttClient, &modbusSwitch, &serialUpower, 0xb3);
+	devices[numOfDevice++] = new XYMD02(&mqttClient, &modbusSwitch, &serialUpower, 0xb4);
 	#endif
 
 	#ifdef ESP32
