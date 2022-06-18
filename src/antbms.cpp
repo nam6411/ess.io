@@ -70,7 +70,7 @@ Antbms::Antbms(PubSubClient *_mqttClient, SoftwareSerial *_serial){
     discharge_mosfet_status_describe = "";
     balance_status_describe = "";
     cell_data[30] = {0.0, };
-    cell_resi[30] = {0.0, };
+    // cell_resi[30] = {0.0, };
     battery_capacity = 0.0;
     battery_current = 0.0;
     temp_mosfet = 0.0;
@@ -170,17 +170,17 @@ int Antbms::setup_entity(){
 		mqtt_publish(strbuf, assemble_discover_sensor_message(strbuf2, strbuf3, "V", "power", "homeassistant/sensor/antbms/state", strbuf4, msgbuf), true);
 	}
 
-  for(int i = 1 ; i <= NUM_MAX_CELL; i++){
-    sprintf(strbuf, "homeassistant/sensor/antbms/cell_ohm%d/config\0", i);
-    char strbuf2[20];
-    char strbuf3[20];
-    char strbuf4[20];
-    Serial.printf("start");
-    sprintf(strbuf2, "cellohm%d", i);
-    sprintf(strbuf3, "Cell Ohm %d", i);
-    sprintf(strbuf4, "cellohm%d", i);
-    mqtt_publish(strbuf, assemble_discover_sensor_message(strbuf2, strbuf3, "mΩ", "power", "homeassistant/sensor/antbms/state", strbuf4, msgbuf), true);
-  }
+//   for(int i = 1 ; i <= NUM_MAX_CELL; i++){
+//     sprintf(strbuf, "homeassistant/sensor/antbms/cell_ohm%d/config\0", i);
+//     char strbuf2[20];
+//     char strbuf3[20];
+//     char strbuf4[20];
+//     Serial.printf("start");
+//     sprintf(strbuf2, "cellohm%d", i);
+//     sprintf(strbuf3, "Cell Ohm %d", i);
+//     sprintf(strbuf4, "cellohm%d", i);
+//     mqtt_publish(strbuf, assemble_discover_sensor_message(strbuf2, strbuf3, "mΩ", "power", "homeassistant/sensor/antbms/state", strbuf4, msgbuf), true);
+//   }
     return 0;
 }
 
@@ -209,7 +209,10 @@ int checksumCalc(char* buffer_data, int size){
 	uint8_t checksum_l = 0;
 	uint8_t checksum_u = 0;
     for(int i = 0 ; i < 140 ; i++){
-        Serial.printf("%x ", buffer_data[i]);
+        if(i%5 == 0){
+            Serial.printf("\n %d :", i);
+        }
+        Serial.printf("%02x ", buffer_data[i]);
         if( i > 3 && i < 138){
             uint16_t tmpVal = (checksum_l + buffer_data[i]);
             checksum_l = tmpVal % 256;
@@ -241,13 +244,17 @@ void Antbms::parseBMSData(char* bms_data, int size){
         float max_voltage = 0.0f;
         fVoltageAll = 0.0f;
 
-        battery_all_voltage = ((int)bms_data[4] << 8 | (int)bms_data[5])/1000.0f;
-        battery_current = -1*(double)((int)bms_data[70] << 24 | (int)bms_data[71] << 16 | (int)bms_data[72] << 8  | (int)bms_data[73])/10;
+        battery_all_voltage = ((int)bms_data[4] * 8 + (int)bms_data[5])/1000.0f;
+        int tmp_battery_current = 0 | (bms_data[70] << 24) | (bms_data[71]&0xFF) << 16 | (bms_data[72]&0xFF) << 8  | (bms_data[73]&0xFF)
+        Serial.printf("battery_current : %d\n", tmp_battery_current);
+        battery_current = (double)tmp_battery_current;
+        battery_current = battery_current/10;
+        battery_current = battery_current*-1;
         
         for(int i=6 ; i <70 ; i+=2){
             float cell_voltage = ((int)bms_data[i] << 8 | (int)bms_data[i+1])/1000.0f;
-            float cell_internal_resist = (cell_data[cell_index] - cell_voltage) / battery_current * 1000;
-            cell_resi[cell_index] = cell_internal_resist;
+            // float cell_internal_resist = (cell_data[cell_index] - cell_voltage) / battery_current * 1000;
+            // cell_resi[cell_index] = cell_internal_resist;
             cell_data[cell_index] = cell_voltage;
             fVoltageAll += cell_data[cell_index];
             if(min_voltage > cell_data[cell_index] && cell_data[cell_index] > 2){
@@ -441,9 +448,9 @@ int Antbms::publish_data(){
         sprintf(&buf[strlen(buf)], "\"cell%d\":%1.3f,", i, cell_data[i]);	
     }
 
-    for(int i = 1 ; i <= NUM_MAX_CELL ; i++){
-        sprintf(&buf[strlen(buf)], "\"cell_ohm%d\":%1.3f,", i, cell_resi[i]);  
-    }
+    // for(int i = 1 ; i <= NUM_MAX_CELL ; i++){
+    //     sprintf(&buf[strlen(buf)], "\"cell_ohm%d\":%1.3f,", i, cell_resi[i]);  
+    // }
 
     sprintf(&buf[strlen(buf)], "\"bms_soc\":%d, \"cell_diff\":%1.3f}", bms_soc, cell_diff);
 
