@@ -245,7 +245,7 @@ void Antbms::parseBMSData(char* bms_data, int size){
         fVoltageAll = 0.0f;
 
         battery_all_voltage = ((int)bms_data[4] * 8 + (int)bms_data[5])/1000.0f;
-        int tmp_battery_current = 0 | (bms_data[70] << 24) | (bms_data[71]&0xFF) << 16 | (bms_data[72]&0xFF) << 8  | (bms_data[73]&0xFF)
+        int tmp_battery_current = 0 | (bms_data[70] << 24) | (bms_data[71]&0xFF) << 16 | (bms_data[72]&0xFF) << 8  | (bms_data[73]&0xFF);
         Serial.printf("battery_current : %d\n", tmp_battery_current);
         battery_current = (double)tmp_battery_current;
         battery_current = battery_current/10;
