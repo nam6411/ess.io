@@ -175,7 +175,7 @@ int Upower::publish_data(){
 
   DynamicJsonDocument battery_data(1024);
   battery_data["outVoltage"] = round_range(battery.voltage);
-  battery_data["temperature"] = battery.temp;
+  battery_data["temperature"] = round_range(battery.temp);
 
 
   serializeJson(grid_data, buf);
@@ -272,7 +272,7 @@ int Upower::update_data(){
 
         bypass.voltage=(float)ucValue354C[12]/100;
        	bypass.current=(float)ucValue354C[13]/100;
-        bypass.wattage=(float)ucValue354C[14]/100; + (float)ucValue354C[15]*256*256/100;
+        bypass.wattage=(float)ucValue354C[14]/100 + (float)ucValue354C[15]*256*256/100;
     }
 
     if(nResult3500 == modbus->ku8MBSuccess && nResult354C == modbus->ku8MBSuccess){
