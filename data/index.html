@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ess.io2</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f4f5; color: #18181b; }
+  h1 { font-size: 1.25rem; margin: 0 0 12px; }
+  .card { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid #eee; }
+  .row:last-child { border-bottom: 0; }
+  .badge { padding: 2px 8px; border-radius: 999px; font-size: .75rem; background: #e4e4e7; }
+  .on { background: #dcfce7; } .off { background: #fee2e2; }
+  button { padding: 4px 10px; border: 1px solid #d4d4d8; border-radius: 6px; background: #fff; cursor: pointer; }
+  pre { font-size: .75rem; overflow-x: auto; }
+</style>
+</head>
+<body>
+<h1>ess.io2 <span id="dev" class="badge"></span></h1>
+<div class="card" id="sys">loading…</div>
+<div id="slots"></div>
+<div class="card"><small>임시 대시보드. 정식 UI는 docs/13-web-api.md §6 참조.</small></div>
+<script>
+const $ = s => document.querySelector(s);
+async function api(path, opt) { const r = await fetch(path, opt); return r.json(); }
+async function toggle(slot, name, on) {
+  await api(`/api/slots/${slot}/switch/${name}`, {method:'POST', headers:{'Content-Type':'application/json','X-Requested-With':'essio'}, body: JSON.stringify({on})});
+  setTimeout(refresh, 800);
+}
+async function refresh() {
+  try {
+    const sys = await api('/api/system/info');
+    $('#dev').textContent = sys.device_id;
+    $('#sys').innerHTML = `<div class="row"><span>IP</span><span>${sys.ip || sys.ap_ip}</span></div>
+      <div class="row"><span>WiFi</span><span>${sys.wifi_state} (${sys.rssi} dBm)</span></div>
+      <div class="row"><span>MQTT</span><span>${sys.mqtt_state}</span></div>
+      <div class="row"><span>Heap</span><span>${sys.heap_free}</span></div>
+      <div class="row"><span>Uptime</span><span>${sys.uptime_s}s</span></div>`;
+    const slots = await api('/api/slots');
+    $('#slots').innerHTML = slots.filter(s => s.enabled).map(s => `
+      <div class="card">
+        <div class="row"><b>${s.label || s.slug}</b><span class="badge ${s.online ? 'on' : 'off'}">${s.online ? 'online' : 'offline'}</span></div>
+        ${(s.switches || []).map(w => `<div class="row"><span>${w.label}</span>
+          <button onclick="toggle(${s.index}, '${w.name}', ${!w.on})" class="badge ${w.on ? 'on' : 'off'}">${w.on ? 'ON' : 'OFF'}</button></div>`).join('')}
+        <pre>${JSON.stringify(s.state, null, 1)}</pre>
+        ${s.last_error ? `<small>last error: ${s.last_error}</small>` : ''}
+      </div>`).join('');
+  } catch (e) { $('#sys').textContent = 'error: ' + e; }
+}
+refresh(); setInterval(refresh, 3000);
+</script>
+</body>
+</html>
