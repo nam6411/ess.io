@@ -100,7 +100,7 @@ bool ConfigStore::begin() {
     return true;
 }
 
-// 기본값 = 기존 ess.io 구성 (docs/12-config-schema.md §1)
+// 기본값: 게이트웨이 한 대에 실제 장치 한 대.
 void ConfigStore::setDefaults() {
     cfg_ = Config();
 
@@ -130,35 +130,8 @@ void ConfigStore::setDefaults() {
         s.port = 0; s.slaveId = 10; s.pollIntervalMs = 5000;
         ModuleRegistry::defaultParams(s.type, s.params.to<JsonObject>());
     }
-    {
-        SlotConfig& s = cfg_.slots[1];
-        s.enabled = true; s.type = "jbdbms"; s.slug = "bms"; s.label = "JBD BMS";
-        s.port = 1; s.slaveId = 0; s.pollIntervalMs = 5000;
-        ModuleRegistry::defaultParams(s.type, s.params.to<JsonObject>());
-    }
-    {
-        SlotConfig& s = cfg_.slots[2];
-        s.enabled = true; s.type = "rtusw_mk1"; s.slug = "relay"; s.label = "Relay Board";
-        s.port = 2; s.slaveId = 255; s.pollIntervalMs = 3000;
-        JsonObject params = s.params.to<JsonObject>();
-        ModuleRegistry::defaultParams(s.type, params);
-        const char* names[] = {"Equalizer", "Plumbing Drain", "Tank Drain", "Whale to Fill",
-                               "Aroundview", "Mover", "12v Charger", "Channel 8"};
-        JsonArray channels = params["channels"].to<JsonArray>();
-        for (uint8_t ch = 1; ch <= 8; ch++) {
-            JsonObject c = channels.add<JsonObject>();
-            c["ch"] = ch;
-            c["name"] = names[ch - 1];
-            c["enabled"] = ch != 8;
-        }
-    }
-
-    cfg_.buttonCount = 2;
-    cfg_.buttons[0].pin = 14; cfg_.buttons[0].action = {2, "ch6"};
-    cfg_.buttons[1].pin = 12; cfg_.buttons[1].action = {0, "inverter"};
-    cfg_.outputCount = 2;
-    cfg_.outputs[0].pin = 26; cfg_.outputs[0].source = {2, "ch6"};
-    cfg_.outputs[1].pin = 25; cfg_.outputs[1].source = {0, "inverter"};
+    cfg_.buttonCount = 0;
+    cfg_.outputCount = 0;
 
     loadedFromFile_ = false;
 }
@@ -177,6 +150,24 @@ bool ConfigStore::load() {
         return false;
     }
     uint8_t version = doc["schema_version"] | 0;
+    bool migrated = false;
+    if (version < 2) {
+        // v1은 최대 네 슬롯이었다. 단일 장치 정책에서는 첫 슬롯만 보존한다.
+        JsonArray slots = doc["slots"].as<JsonArray>();
+        while (slots.size() > 1) slots.remove(1);
+        JsonArray buttons = doc["io"]["buttons"].as<JsonArray>();
+        for (size_t i = buttons.size(); i > 0; i--) {
+            if ((buttons[i - 1]["action"]["slot"] | -1) != 0) buttons.remove(i - 1);
+        }
+        JsonArray outputs = doc["io"]["outputs"].as<JsonArray>();
+        for (size_t i = outputs.size(); i > 0; i--) {
+            if ((outputs[i - 1]["source"]["slot"] | -1) != 0) outputs.remove(i - 1);
+        }
+        doc["schema_version"] = SCHEMA_VERSION;
+        LOG_I("config: migrated schema %u -> %u (single device)", version, SCHEMA_VERSION);
+        version = SCHEMA_VERSION;
+        migrated = true;
+    }
     if (version != SCHEMA_VERSION) {
         // TODO: 마이그레이션 (docs/12-config-schema.md §5)
         LOG_W("config: schema_version %u != %u", version, SCHEMA_VERSION);
@@ -189,6 +180,7 @@ bool ConfigStore::load() {
     }
     loadedFromFile_ = true;
     LOG_I("config: loaded %s", PATH);
+    if (migrated && !save()) LOG_W("config: could not persist migrated schema");
     return true;
 }
 
@@ -425,6 +417,7 @@ bool ConfigStore::parseInto(Config& c, JsonVariantConst src, String& error) cons
 
     JsonArrayConst slots = src["slots"].as<JsonArrayConst>();
     if (!slots.isNull()) {
+        if (slots.size() > MAX_SLOTS) { error = "slots: only one device is supported"; return false; }
         for (JsonObjectConst o : slots) {
             uint8_t index = getNum<uint8_t>(o["index"], 255);
             if (index >= MAX_SLOTS) { error = "slots[].index out of range"; return false; }

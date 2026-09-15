@@ -3,31 +3,105 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ess.io2</title>
+<title>ess.io2 설정</title>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f4f5; color: #18181b; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0 auto; padding: 16px; max-width: 860px; background: #f4f4f5; color: #18181b; }
   h1 { font-size: 1.25rem; margin: 0 0 12px; }
-  .card { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
-  .row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid #eee; }
+  h2 { font-size: 1rem; margin: 4px 0 12px; }
+  .card { background: #fff; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 5px 0; border-bottom: 1px solid #eee; }
   .row:last-child { border-bottom: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 16px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: #52525b; }
+  label.check { flex-direction: row; align-items: center; color: #18181b; }
+  input, select { width: 100%; padding: 7px 8px; border: 1px solid #d4d4d8; border-radius: 6px; background: #fff; }
+  input[type=checkbox] { width: auto; }
+  button { padding: 7px 12px; border: 1px solid #d4d4d8; border-radius: 6px; background: #fff; cursor: pointer; }
+  button.primary { color: #fff; background: #2563eb; border-color: #2563eb; }
+  .actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
   .badge { padding: 2px 8px; border-radius: 999px; font-size: .75rem; background: #e4e4e7; }
   .on { background: #dcfce7; } .off { background: #fee2e2; }
-  button { padding: 4px 10px; border: 1px solid #d4d4d8; border-radius: 6px; background: #fff; cursor: pointer; }
+  .section { margin-top: 14px; padding-top: 10px; border-top: 1px solid #e4e4e7; }
   pre { font-size: .75rem; overflow-x: auto; }
+  #message.ok { color: #15803d; } #message.error { color: #b91c1c; }
 </style>
 </head>
 <body>
 <h1>ess.io2 <span id="dev" class="badge"></span></h1>
 <div class="card" id="sys">loading…</div>
 <div id="slots"></div>
-<div class="card"><small>임시 대시보드. 정식 UI는 docs/13-web-api.md §6 참조.</small></div>
+
+<form id="settings" class="card">
+  <h2>단일 장치 설정</h2>
+  <div class="grid">
+    <label>Home Assistant 장치 이름<input id="device_name" maxlength="32"></label>
+    <label class="check"><input id="device_enabled" type="checkbox"> 장치 활성화</label>
+    <label>장치 종류<select id="device_type"></select></label>
+    <label>표시 이름<input id="device_label" maxlength="32"></label>
+    <label>MQTT 토픽 이름<input id="device_slug" maxlength="16" pattern="[a-z0-9_]+"></label>
+    <label>Modbus 주소<input id="slave_id" type="number" min="0" max="255"></label>
+    <label>폴링 주기(ms)<input id="poll_ms" type="number" min="1000" max="600000"></label>
+  </div>
+
+  <div class="section">
+    <h2>시리얼 포트</h2>
+    <div class="grid">
+      <label>종류<select id="port_kind"><option value="hw1">Hardware Serial 1</option><option value="hw2">Hardware Serial 2</option><option value="sw">Software Serial</option></select></label>
+      <label>RX GPIO<input id="port_rx" type="number" min="0" max="39"></label>
+      <label>TX GPIO<input id="port_tx" type="number" min="0" max="33"></label>
+      <label>Baud rate<input id="port_baud" type="number" min="1200" max="115200"></label>
+      <label>Timeout(ms)<input id="port_timeout" type="number" min="100" max="3000"></label>
+      <label>RS485 DE GPIO (-1: 미사용)<input id="port_de" type="number" min="-1" max="33"></label>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>WiFi</h2>
+    <div class="grid">
+      <label>SSID<input id="wifi_ssid" maxlength="32"></label>
+      <label>비밀번호<input id="wifi_password" type="password" maxlength="64"></label>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>MQTT</h2>
+    <div class="grid">
+      <label class="check"><input id="mqtt_enabled" type="checkbox"> MQTT 활성화</label>
+      <label>브로커 주소<input id="mqtt_host"></label>
+      <label>포트<input id="mqtt_port" type="number" min="1" max="65535"></label>
+      <label>사용자 이름<input id="mqtt_user"></label>
+      <label>비밀번호<input id="mqtt_password" type="password"></label>
+      <label>Base topic<input id="mqtt_base" placeholder="비우면 essio/장치ID"></label>
+      <label class="check"><input id="discovery_enabled" type="checkbox"> Home Assistant Discovery</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>노출 기능 및 센서</h2>
+    <div id="params"></div>
+  </div>
+  <div class="actions"><button class="primary" type="submit">설정 저장</button><button id="rediscover" type="button">Discovery 재발행</button><span id="message"></span></div>
+</form>
+
 <script>
 const $ = s => document.querySelector(s);
-async function api(path, opt) { const r = await fetch(path, opt); return r.json(); }
+let cfg, schema, params = {};
+
+async function api(path, opt) {
+  const r = await fetch(path, opt);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.message || body.error || `HTTP ${r.status}`);
+  return body;
+}
+const num = id => Number($(id).value);
+const checked = id => $(id).checked;
+
 async function toggle(slot, name, on) {
-  await api(`/api/slots/${slot}/switch/${name}`, {method:'POST', headers:{'Content-Type':'application/json','X-Requested-With':'essio'}, body: JSON.stringify({on})});
+  await api(`/api/slots/${slot}/switch/${name}`, {method:'POST', headers:{'Content-Type':'application/json','X-Requested-With':'essio'}, body:JSON.stringify({on})});
   setTimeout(refresh, 800);
 }
+
 async function refresh() {
   try {
     const sys = await api('/api/system/info');
@@ -39,16 +113,103 @@ async function refresh() {
       <div class="row"><span>Uptime</span><span>${sys.uptime_s}s</span></div>`;
     const slots = await api('/api/slots');
     $('#slots').innerHTML = slots.filter(s => s.enabled).map(s => `
-      <div class="card">
-        <div class="row"><b>${s.label || s.slug}</b><span class="badge ${s.online ? 'on' : 'off'}">${s.online ? 'online' : 'offline'}</span></div>
-        ${(s.switches || []).map(w => `<div class="row"><span>${w.label}</span>
-          <button onclick="toggle(${s.index}, '${w.name}', ${!w.on})" class="badge ${w.on ? 'on' : 'off'}">${w.on ? 'ON' : 'OFF'}</button></div>`).join('')}
-        <pre>${JSON.stringify(s.state, null, 1)}</pre>
-        ${s.last_error ? `<small>last error: ${s.last_error}</small>` : ''}
-      </div>`).join('');
-  } catch (e) { $('#sys').textContent = 'error: ' + e; }
+      <div class="card"><div class="row"><b>${s.label || s.slug}</b><span class="badge ${s.online ? 'on' : 'off'}">${s.online ? 'online' : 'offline'}</span></div>
+      ${(s.switches || []).map(w => `<div class="row"><span>${w.label}</span><button onclick="toggle(${s.index}, '${w.name}', ${!w.on})" class="badge ${w.on ? 'on' : 'off'}">${w.on ? 'ON' : 'OFF'}</button></div>`).join('')}
+      <pre>${JSON.stringify(s.state, null, 1)}</pre>${s.last_error ? `<small>last error: ${s.last_error}</small>` : ''}</div>`).join('');
+  } catch (e) { $('#sys').textContent = 'error: ' + e.message; }
 }
-refresh(); setInterval(refresh, 3000);
+
+function typeInfo(type) { return schema.types.find(t => t.type === type); }
+function defaultParams(type) { return JSON.parse(JSON.stringify(typeInfo(type)?.params_default || {})); }
+function renderParams() {
+  const type = $('#device_type').value;
+  if (type === 'upower') {
+    params.blocks ||= {grid:true, pv:true, inverter:true, battery:true};
+    $('#params').innerHTML = `<div class="grid">
+      <label class="check"><input id="blk_pv" type="checkbox" ${params.blocks.pv ? 'checked' : ''}> PV 센서</label>
+      <label class="check"><input id="blk_grid" type="checkbox" ${params.blocks.grid ? 'checked' : ''}> 계통 충전 센서</label>
+      <label class="check"><input id="blk_inv" type="checkbox" ${params.blocks.inverter ? 'checked' : ''}> 인버터 센서</label>
+      <label class="check"><input id="blk_bat" type="checkbox" ${params.blocks.battery ? 'checked' : ''}> 배터리·바이패스 센서</label>
+      <label class="check"><input id="mask_output" type="checkbox" ${params.mask_inactive_output ? 'checked' : ''}> 비활성 출력값 0 처리</label>
+      <label>명령 재시도 횟수<input id="write_retries" type="number" min="0" max="10" value="${params.write_retries ?? 3}"></label></div>`;
+  } else if (type === 'jbdbms') {
+    $('#params').innerHTML = `<div class="grid">
+      <label>셀 수<input id="cell_count" type="number" min="1" max="32" value="${params.cell_count ?? 16}"></label>
+      <label>NTC 센서 수<input id="ntc_count" type="number" min="0" max="8" value="${params.ntc_count ?? 2}"></label>
+      <label class="check"><input id="expose_cells" type="checkbox" ${params.expose_cells !== false ? 'checked' : ''}> 셀 전압 센서 등록</label>
+      <label class="check"><input id="expose_protection" type="checkbox" ${params.expose_protection_bits !== false ? 'checked' : ''}> 보호·밸런스 센서 등록</label></div>`;
+  } else {
+    const channels = params.channels || [];
+    $('#params').innerHTML = `<div class="grid">${channels.map((c, i) => `<label>채널 ${c.ch} 이름<input id="ch_name_${i}" value="${c.name || `Channel ${c.ch}`}"></label><label class="check"><input id="ch_enabled_${i}" type="checkbox" ${c.enabled !== false ? 'checked' : ''}> 채널 ${c.ch} 등록</label>`).join('')}<label>명령 재시도 횟수<input id="write_retries" type="number" min="0" max="10" value="${params.write_retries ?? 3}"></label></div>`;
+  }
+}
+
+function readParams() {
+  const type = $('#device_type').value;
+  if (type === 'upower') return {blocks:{pv:checked('#blk_pv'), grid:checked('#blk_grid'), inverter:checked('#blk_inv'), battery:checked('#blk_bat')}, write_retries:num('#write_retries'), mask_inactive_output:checked('#mask_output')};
+  if (type === 'jbdbms') return {...params, cell_count:num('#cell_count'), ntc_count:num('#ntc_count'), expose_cells:checked('#expose_cells'), expose_protection_bits:checked('#expose_protection')};
+  return {...params, write_retries:num('#write_retries'), channels:(params.channels || []).map((c,i) => ({ch:c.ch, name:$(`#ch_name_${i}`).value, enabled:checked(`#ch_enabled_${i}`)}))};
+}
+
+function fillSettings() {
+  const s = cfg.slots[0], p = cfg.ports[s.port || 0], m = cfg.mqtt;
+  $('#device_name').value = cfg.device.name;
+  $('#device_enabled').checked = s.enabled;
+  $('#device_type').innerHTML = schema.types.map(t => `<option value="${t.type}">${t.label}</option>`).join('');
+  $('#device_type').value = s.type;
+  $('#device_label').value = s.label;
+  $('#device_slug').value = s.slug;
+  $('#slave_id').value = s.slave_id;
+  $('#poll_ms').value = s.poll_interval_ms;
+  $('#port_kind').value = p.kind; $('#port_rx').value = p.rx; $('#port_tx').value = p.tx;
+  $('#port_baud').value = p.baud; $('#port_timeout').value = p.timeout_ms; $('#port_de').value = p.de_pin;
+  $('#wifi_ssid').value = cfg.wifi.ssid; $('#wifi_password').value = cfg.wifi.password;
+  $('#mqtt_enabled').checked = m.enabled; $('#mqtt_host').value = m.host; $('#mqtt_port').value = m.port;
+  $('#mqtt_user').value = m.username; $('#mqtt_password').value = m.password; $('#mqtt_base').value = m.base_topic;
+  $('#discovery_enabled').checked = m.discovery.enabled;
+  params = JSON.parse(JSON.stringify(s.params || defaultParams(s.type)));
+  renderParams();
+}
+
+$('#device_type').addEventListener('change', () => {
+  const type = $('#device_type').value;
+  params = defaultParams(type);
+  if (type === 'upower') { $('#slave_id').value = 10; $('#port_baud').value = 115200; }
+  else if (type === 'jbdbms') { $('#slave_id').value = 0; $('#port_baud').value = 9600; }
+  else { $('#slave_id').value = 255; $('#port_baud').value = 9600; }
+  renderParams();
+});
+$('#settings').addEventListener('submit', async e => {
+  e.preventDefault();
+  const msg = $('#message'); msg.className = ''; msg.textContent = '저장 중…';
+  try {
+    const s = cfg.slots[0], p = cfg.ports[s.port || 0];
+    cfg.device.name = $('#device_name').value.trim();
+    s.enabled = checked('#device_enabled'); s.type = $('#device_type').value; s.label = $('#device_label').value.trim();
+    s.slug = $('#device_slug').value.trim(); s.slave_id = num('#slave_id'); s.poll_interval_ms = num('#poll_ms'); s.params = readParams();
+    cfg.slots = [s];
+    p.kind = $('#port_kind').value; p.rx = num('#port_rx'); p.tx = num('#port_tx'); p.baud = num('#port_baud');
+    p.timeout_ms = num('#port_timeout'); p.de_pin = num('#port_de');
+    cfg.wifi.ssid = $('#wifi_ssid').value.trim(); cfg.wifi.password = $('#wifi_password').value;
+    cfg.mqtt.enabled = checked('#mqtt_enabled'); cfg.mqtt.host = $('#mqtt_host').value.trim(); cfg.mqtt.port = num('#mqtt_port');
+    cfg.mqtt.username = $('#mqtt_user').value; cfg.mqtt.password = $('#mqtt_password').value; cfg.mqtt.base_topic = $('#mqtt_base').value.trim();
+    cfg.mqtt.discovery.enabled = checked('#discovery_enabled');
+    await api('/api/config', {method:'PUT', headers:{'Content-Type':'application/json','X-Requested-With':'essio'}, body:JSON.stringify(cfg)});
+    msg.className = 'ok'; msg.textContent = '저장됨';
+    setTimeout(refresh, 1200);
+  } catch (e) { msg.className = 'error'; msg.textContent = e.message; }
+});
+$('#rediscover').addEventListener('click', async () => {
+  const msg = $('#message');
+  try { await api('/api/system/rediscover', {method:'POST', headers:{'X-Requested-With':'essio'}}); msg.className='ok'; msg.textContent='재발행 요청됨'; }
+  catch (e) { msg.className='error'; msg.textContent=e.message; }
+});
+
+async function init() {
+  try { [cfg, schema] = await Promise.all([api('/api/config'), api('/api/config/schema')]); fillSettings(); await refresh(); setInterval(refresh, 3000); }
+  catch (e) { $('#message').className='error'; $('#message').textContent=e.message; }
+}
+init();
 </script>
 </body>
 </html>

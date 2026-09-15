@@ -7,6 +7,7 @@ bool RtuSwBase::begin(SerialPort& port, uint8_t slaveId, JsonVariantConst params
     slaveId_ = slaveId;
     writeRetries_ = params["write_retries"] | 3;
     channelCount_ = 0;
+    activeCount_ = 0;
     for (uint8_t i = 0; i < MAX_CH; i++) {
         enabled_[i] = false;
         state_[i] = false;
@@ -23,6 +24,9 @@ bool RtuSwBase::begin(SerialPort& port, uint8_t slaveId, JsonVariantConst params
         if (ch > channelCount_) channelCount_ = ch;
     }
     if (channelCount_ == 0) channelCount_ = maxChannels();
+    for (uint8_t i = 0; i < channelCount_; i++) {
+        if (enabled_[i]) activeChannels_[activeCount_++] = i;
+    }
     return true;
 }
 
@@ -36,14 +40,15 @@ PollResult RtuSwBase::pollStep() {
 }
 
 bool RtuSwBase::writeSwitch(size_t i, bool on) {
-    if (i >= channelCount_) return false;
+    if (i >= activeCount_) return false;
+    uint8_t channel = activeChannels_[i];
     for (uint8_t attempt = 0; attempt <= writeRetries_; attempt++) {
-        MbResult r = writeOne(i + 1, on);
+        MbResult r = writeOne(channel + 1, on);
         if (r == MbResult::Ok) {
-            state_[i] = on;
+            state_[channel] = on;
             return true;
         }
-        snprintf(lastError_, sizeof(lastError_), "write ch%u %s", (unsigned)(i + 1), ModbusRtu::resultName(r));
+        snprintf(lastError_, sizeof(lastError_), "write ch%u %s", (unsigned)(channel + 1), ModbusRtu::resultName(r));
         delay(50);
     }
     return false;
@@ -51,7 +56,7 @@ bool RtuSwBase::writeSwitch(size_t i, bool on) {
 
 void RtuSwBase::toJson(JsonObject out) const {
     JsonArray ch = out["ch"].to<JsonArray>();
-    for (uint8_t i = 0; i < channelCount_; i++) ch.add(state_[i]);
+    for (uint8_t i = 0; i < activeCount_; i++) ch.add(state_[activeChannels_[i]]);
 }
 
 }  // namespace essio

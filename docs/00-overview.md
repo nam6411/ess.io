@@ -19,7 +19,7 @@
 | 항목 | 기존 (ess.io) | 신규 (ess.io2) |
 |---|---|---|
 | 타겟 | ESP8266 + ESP32 겸용 | **ESP32 전용** |
-| 장치 구성 | 코드에 고정 (Upower 1, Jbdbms 1, RtuSwMk1 1) | **웹 UI에서 슬롯 4개에 모듈 타입/파라미터 선택** |
+| 장치 구성 | 코드에 고정 (Upower 1, Jbdbms 1, RtuSwMk1 1) | **게이트웨이당 장치 1개를 웹 UI에서 선택·설정** |
 | 지원 모듈 | Upower, Jbdbms, RtuSwMk1, RtuSwMk2, (Antbms, DS1603DA, XYMD02 – 미사용) | **Upower, Jbdbms, RtuSwMk1, RtuSwMk2** (4종) |
 | 설정 저장 | EEPROM 고정 오프셋 + 자체 체크섬 | NVS(Preferences) 또는 LittleFS JSON (→ `12-config-schema.md`) |
 | 웹 UI | `/settings` 단일 폼(WiFi/MQTT만) | WiFi/MQTT + 슬롯별 모듈 설정 + 상태 확인 + 제어 |
@@ -65,7 +65,7 @@
 | UPOWER | EPEVER UPower 계열 하이브리드 인버터/충전 컨트롤러 (Modbus RTU, 기존 코드의 `Upower` 클래스, 토픽 도메인 `upower`, 과거 도메인 `epever`) |
 | JBD BMS | JBD(Jiabaida) 스마트 BMS, UART 0xDD 프로토콜 (기존 `Jbdbms` 클래스) |
 | RTU SW Mk1 / Mk2 | Modbus RTU 릴레이 보드 2세대. Mk1은 코일(FC01/05), Mk2는 홀딩 레지스터(FC03/06) 사용 |
-| 슬롯(slot) | 신규 설계에서 장치 모듈 인스턴스가 장착되는 논리 위치 (0~3, 최대 4개) |
+| 슬롯(slot) | 내부 API에서 단일 장치 모듈 인스턴스를 나타내는 논리 위치 (index 0) |
 | 포트(port) | 물리 UART/RS485 채널 (ESP32 UART1/UART2 + 필요 시 SoftwareSerial) |
 | HA | Home Assistant |
 | Discovery | HA MQTT Discovery — `homeassistant/<component>/<...>/config` 토픽에 JSON을 retain 발행하여 엔티티를 자동 생성하는 규약 |

@@ -2,11 +2,11 @@
 
 파일: LittleFS `/config.json` (#Q-1). 최대 8KB. `schema_version`으로 마이그레이션.
 
-## 1. 전체 예시 (기존 ess.io 구성을 그대로 옮긴 기본값)
+## 1. 전체 예시 (단일 UPower 기본값)
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "device": {
     "name": "ESS Gateway",
     "hostname": "",
@@ -46,53 +46,13 @@
       "params": {
         "blocks": { "grid": true, "pv": true, "inverter": true, "battery": true },
         "write_retries": 3,
-        "mask_by_grid_prio": false,
-        "storage_mode": { "enabled": false, "cells": 16, "bcv_mv": 3650, "fcv_mv": 3450, "bvr_mv": 3380,
-                          "storage_bcv_mv": 3400, "storage_fcv_mv": 3300, "storage_bvr_mv": 3200 }
+        "mask_inactive_output": false
       }
-    },
-    {
-      "index": 1, "enabled": true, "type": "jbdbms", "slug": "bms", "label": "JBD BMS",
-      "port": 1, "slave_id": 0, "poll_interval_ms": 5000,
-      "params": {
-        "cell_count": 16,
-        "expose_cells": true,
-        "expose_protection_bits": true,
-        "charge_limit": { "enabled": false, "soc_high": 80, "soc_low": 70 }
-      }
-    },
-    {
-      "index": 2, "enabled": true, "type": "rtusw_mk1", "slug": "relay", "label": "Relay Board",
-      "port": 2, "slave_id": 255, "poll_interval_ms": 3000,
-      "params": {
-        "write_retries": 3,
-        "channels": [
-          { "ch": 1, "name": "Equalizer",      "enabled": true },
-          { "ch": 2, "name": "Plumbing Drain", "enabled": true },
-          { "ch": 3, "name": "Tank Drain",     "enabled": true },
-          { "ch": 4, "name": "Whale to Fill",  "enabled": true },
-          { "ch": 5, "name": "Aroundview",     "enabled": true },
-          { "ch": 6, "name": "Mover",          "enabled": true },
-          { "ch": 7, "name": "12v Charger",    "enabled": true },
-          { "ch": 8, "name": "Channel 8",      "enabled": false }
-        ]
-      }
-    },
-    { "index": 3, "enabled": false, "type": "none" }
+    }
   ],
   "io": {
-    "buttons": [
-      { "pin": 14, "active_low": true, "debounce_ms": 50,
-        "action": { "slot": 2, "switch": "ch6", "mode": "toggle" },
-        "long_press_ms": 0, "long_action": null },
-      { "pin": 12, "active_low": true, "debounce_ms": 50,
-        "action": { "slot": 0, "switch": "inverter", "mode": "toggle" },
-        "long_press_ms": 0, "long_action": null }
-    ],
-    "outputs": [
-      { "pin": 26, "active_high": true, "source": { "slot": 2, "switch": "ch6" } },
-      { "pin": 25, "active_high": true, "source": { "slot": 0, "switch": "inverter" } }
-    ]
+    "buttons": [],
+    "outputs": []
   }
 }
 ```
@@ -148,12 +108,12 @@
 | de_pin | -1 또는 GPIO | |
 | timeout_ms | 100..3000 | Modbus/시리얼 응답 대기 |
 
-### `slots[]` (정확히 4개, index 0..3)
+### `slots[]` (정확히 1개, index 0)
 | 필드 | 타입 | 검증 |
 |---|---|---|
 | enabled | bool | |
 | type | none / upower / jbdbms / rtusw_mk1 / rtusw_mk2 | |
-| slug | `[a-z0-9_]{1,16}` | 슬롯 간 유일; 토픽·object_id에 사용 |
+| slug | `[a-z0-9_]{1,16}` | 토픽·object_id에 사용 |
 | label | ≤32 | HA 표시명 접두 |
 | port | 0..2 | 해당 포트 kind ≠ none |
 | slave_id | 0..255 | |
@@ -165,8 +125,7 @@
 |---|---|
 | blocks.grid/pv/inverter/battery | true |
 | write_retries | 3 (0..10) |
-| mask_by_grid_prio | false |
-| storage_mode.enabled | false; 이하 mV 단위 셀 전압 및 셀 수 |
+| mask_inactive_output | false; FC02 `0x2100` 실제 바이패스 상태로 비활성 출력값 마스크 |
 
 #### `params` — jbdbms
 | 필드 | 기본 |
@@ -204,5 +163,5 @@
 | web.auth | 즉시 |
 
 ## 5. 마이그레이션
-- `schema_version` 없음/0 → 기본값으로 생성.
+- v1의 다중 슬롯 설정은 v2 로드 시 슬롯 0만 보존하고, 다른 슬롯을 참조하는 버튼·출력은 제거한다.
 - 기존 ess.io EEPROM 값 가져오기는 지원하지 않음(다른 저장소). 웹 UI 입력으로 재설정.

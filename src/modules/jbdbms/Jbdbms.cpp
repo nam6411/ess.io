@@ -90,12 +90,14 @@ bool Jbdbms::switchState(size_t i) const {
 }
 
 size_t Jbdbms::sensorCount() const {
-    return NUM_SCALARS + (params_.exposeCells ? params_.cellCount : 0) + dyn.ntcExposed;
+    return NUM_SCALARS - (params_.exposeProtection ? 0 : 2) +
+           (params_.exposeCells ? params_.cellCount : 0) + dyn.ntcExposed;
 }
 
 const SensorDef* Jbdbms::sensorDef(size_t i) const {
-    if (i < NUM_SCALARS) return &SCALARS[i];
-    i -= NUM_SCALARS;
+    const size_t scalars = NUM_SCALARS - (params_.exposeProtection ? 0 : 2);
+    if (i < scalars) return &SCALARS[i];
+    i -= scalars;
     if (params_.exposeCells) {
         if (i < params_.cellCount) return &dyn.cells[i];
         i -= params_.cellCount;
@@ -232,8 +234,10 @@ void Jbdbms::toJson(JsonObject out) const {
     out["cell_diff"] = st_.cellDiff;
     out["chg_fet"] = st_.chgFet;
     out["dis_fet"] = st_.disFet;
-    out["protection"] = st_.protection;
-    out["balance"] = st_.balance;
+    if (params_.exposeProtection) {
+        out["protection"] = st_.protection;
+        out["balance"] = st_.balance;
+    }
     out["cell_count"] = st_.cellCount;
     JsonArray cells = out["cell_v"].to<JsonArray>();
     for (uint8_t i = 0; i < params_.cellCount; i++) cells.add(st_.cellV[i]);

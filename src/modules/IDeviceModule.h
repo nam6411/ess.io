@@ -28,6 +28,8 @@ public:
     virtual ~IDeviceModule() {}
 
     virtual const char* type() const = 0;
+    virtual const char* manufacturer() const { return "ess.io"; }
+    virtual const char* model() const { return type(); }
 
     // 슬롯 활성화 시 1회. params는 slots[i].params
     virtual bool begin(SerialPort& port, uint8_t slaveId, JsonVariantConst params) = 0;

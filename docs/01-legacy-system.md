@@ -21,7 +21,7 @@
 | 상수 | 값 | 용도 |
 |---|---|---|
 | `CURRENT_VERSION` | `"0.1.1"` | HA device `sw_version` |
-| `NUM_MAX_CELL` | 16 | BMS 최대 셀 수, UPOWER 스토리지 모드 전압 계산 계수 |
+| `NUM_MAX_CELL` | 16 | BMS 최대 셀 수 |
 | `NUM_SWITCH` | 3 | (미사용) |
 | `NUM_RTU_MK1_SW` | 8 | Mk1 채널 배열 크기 |
 | `NUM_RTU_MK2_SW` | 4 | Mk2 채널 배열 크기 |

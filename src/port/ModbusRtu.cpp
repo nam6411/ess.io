@@ -87,15 +87,23 @@ MbResult ModbusRtu::transact(uint8_t slave, uint8_t fc, const uint8_t* pdu, size
     return MbResult::Ok;
 }
 
-MbResult ModbusRtu::readCoils(uint8_t slave, uint16_t addr, uint16_t count, uint8_t* out) {
+MbResult ModbusRtu::readBits(uint8_t fc, uint8_t slave, uint16_t addr, uint16_t count, uint8_t* out) {
     uint8_t pdu[4] = {(uint8_t)(addr >> 8), (uint8_t)addr, (uint8_t)(count >> 8), (uint8_t)count};
     size_t bytes = (count + 7) / 8;
     size_t rspLen;
-    MbResult r = transact(slave, 0x01, pdu, 4, 3 + bytes + 2, buf_, rspLen);
+    MbResult r = transact(slave, fc, pdu, 4, 3 + bytes + 2, buf_, rspLen);
     if (r != MbResult::Ok) return r;
     if (buf_[2] != bytes) return MbResult::BadResponse;
     memcpy(out, &buf_[3], bytes);
     return MbResult::Ok;
+}
+
+MbResult ModbusRtu::readCoils(uint8_t slave, uint16_t addr, uint16_t count, uint8_t* out) {
+    return readBits(0x01, slave, addr, count, out);
+}
+
+MbResult ModbusRtu::readDiscreteInputs(uint8_t slave, uint16_t addr, uint16_t count, uint8_t* out) {
+    return readBits(0x02, slave, addr, count, out);
 }
 
 MbResult ModbusRtu::readRegisters(uint8_t fc, uint8_t slave, uint16_t addr, uint16_t count, uint16_t* out) {
@@ -119,13 +127,17 @@ MbResult ModbusRtu::readInputRegisters(uint8_t slave, uint16_t addr, uint16_t co
 MbResult ModbusRtu::writeSingleCoil(uint8_t slave, uint16_t addr, bool on) {
     uint8_t pdu[4] = {(uint8_t)(addr >> 8), (uint8_t)addr, (uint8_t)(on ? 0xFF : 0x00), 0x00};
     size_t rspLen;
-    return transact(slave, 0x05, pdu, 4, 8, buf_, rspLen);
+    MbResult r = transact(slave, 0x05, pdu, 4, 8, buf_, rspLen);
+    if (r != MbResult::Ok) return r;
+    return memcmp(&buf_[2], pdu, sizeof(pdu)) == 0 ? MbResult::Ok : MbResult::BadResponse;
 }
 
 MbResult ModbusRtu::writeSingleRegister(uint8_t slave, uint16_t addr, uint16_t value) {
     uint8_t pdu[4] = {(uint8_t)(addr >> 8), (uint8_t)addr, (uint8_t)(value >> 8), (uint8_t)value};
     size_t rspLen;
-    return transact(slave, 0x06, pdu, 4, 8, buf_, rspLen);
+    MbResult r = transact(slave, 0x06, pdu, 4, 8, buf_, rspLen);
+    if (r != MbResult::Ok) return r;
+    return memcmp(&buf_[2], pdu, sizeof(pdu)) == 0 ? MbResult::Ok : MbResult::BadResponse;
 }
 
 MbResult ModbusRtu::writeMultipleRegisters(uint8_t slave, uint16_t addr, uint16_t count, const uint16_t* values) {
@@ -141,7 +153,10 @@ MbResult ModbusRtu::writeMultipleRegisters(uint8_t slave, uint16_t addr, uint16_
         pdu[6 + i * 2] = values[i];
     }
     size_t rspLen;
-    return transact(slave, 0x10, pdu, 5 + count * 2, 8, buf_, rspLen);
+    MbResult r = transact(slave, 0x10, pdu, 5 + count * 2, 8, buf_, rspLen);
+    if (r != MbResult::Ok) return r;
+    // FC16 응답은 시작 주소와 기록한 레지스터 개수를 echo한다.
+    return memcmp(&buf_[2], pdu, 4) == 0 ? MbResult::Ok : MbResult::BadResponse;
 }
 
 }  // namespace essio

@@ -5,9 +5,9 @@
 ### 포함
 - ESP32 펌웨어 1종 (PlatformIO, Arduino 프레임워크)
 - 장치 모듈 4종: **Upower, Jbdbms, RtuSwMk1, RtuSwMk2**
-- 슬롯 **최대 4개**. 각 슬롯에 모듈 타입 1개 + 파라미터. 같은 타입 중복 허용(예: Mk1 ×2, 슬레이브 주소 다르게).
-- 물리 포트(UART/RS485) 최대 3개, 슬롯→포트 바인딩. 같은 포트를 여러 슬롯이 공유 가능(Modbus 멀티드롭, 슬레이브 주소 상이).
-- 웹 UI(내장, 단일 HTML) + JSON REST API: WiFi/MQTT/포트/슬롯/버튼 설정, 상태 조회, 스위치 제어, 재부팅, 초기화
+- 게이트웨이당 실제 장치 **1개**. 지원 모듈 중 하나와 타입별 파라미터를 선택.
+- 물리 포트(UART/RS485) 정의 최대 3개 중 장치에 사용할 포트 하나를 선택.
+- 웹 UI(내장, 단일 HTML) + JSON REST API: WiFi/MQTT/포트/장치 설정, 상태 조회, 스위치 제어, 재부팅, 초기화
 - MQTT 발행/구독 + HA Discovery
 - 설정 영속화(NVS 또는 LittleFS JSON)
 - 물리 버튼 → 슬롯 스위치 토글 매핑, 상태 출력 핀 매핑
@@ -53,8 +53,8 @@
 ### F-SLOT 슬롯/모듈
 | ID | 요구사항 |
 |---|---|
-| F-SLOT-1 | 슬롯 0..3 각각: `enabled`, `type`(none/upower/jbdbms/rtusw_mk1/rtusw_mk2), `name`(표시명/slug), `port`, `slave_id`, `poll_interval_ms`, 타입별 파라미터 |
-| F-SLOT-2 | 슬롯 폴링은 슬롯별 독립 주기(기본 Upower 5s, Jbdbms 5s, RtuSw 3s), 같은 포트를 쓰는 슬롯은 직렬화(포트 뮤텍스) |
+| F-SLOT-1 | 단일 슬롯: `enabled`, `type`(upower/jbdbms/rtusw_mk1/rtusw_mk2), `name`(표시명/slug), `port`, `slave_id`, `poll_interval_ms`, 타입별 파라미터 |
+| F-SLOT-2 | 선택한 장치 하나를 설정 주기로 폴링하고 포트 뮤텍스로 명령과 직렬화 |
 | F-SLOT-3 | 모듈은 `poll()` 1회당 최대 시간 예산(기본 1500ms)을 넘지 않도록 요청을 분할 가능(상태 머신) |
 | F-SLOT-4 | 연속 오류 N회(기본 3) → 슬롯 `availability = offline`, 성공 시 `online` |
 | F-SLOT-5 | 스위치 명령(MQTT/웹/버튼)은 폴링과 별도 큐로 처리, 쓰기 성공 시 상태 캐시 즉시 갱신 및 발행, 다음 폴링에서 검증 |
@@ -65,10 +65,9 @@
 |---|---|
 | F-UP-1 | `03-device-upower.md` §3 레지스터 4블록 읽기, 스케일링, 32비트 합산 정정(U-04), 충전 상태 비트 정정(U-03) |
 | F-UP-2 | 코일 4개 읽기/쓰기, 쓰기 재시도 횟수 설정(기본 3) |
-| F-UP-3 | 파생값 grid_in.current/wattage 계산, GRID_PRIO 마스킹은 옵션(기본 off, #Q-3) |
+| F-UP-3 | FC02 `0x2100` 실제 바이패스 상태로 비활성 출력값 마스크(기본 off) |
 | F-UP-4 | 배터리 SOC/state, PV 충전 상태를 센서로 노출 |
-| F-UP-5 | (옵션) 스토리지 모드 스위치: 셀 수·전압 파라미터 설정 가능 (#Q-4) |
-| F-UP-6 | 파라미터: slave_id(기본 10), 레지스터 블록 on/off(불필요 블록 생략으로 폴링 단축) |
+| F-UP-5 | 파라미터: slave_id(기본 10), 레지스터 블록 on/off(불필요 블록 생략으로 폴링 단축) |
 
 ### F-JBD Jbdbms
 | ID | 요구사항 |
@@ -93,15 +92,15 @@
 |---|---|
 | F-IO-1 | 버튼 최대 2개(확장 가능): `pin`, `active_low`, `debounce_ms`(기본 50), `action` = {slot, switch_name, mode: toggle/on/off}, `long_press_ms`(선택, 별도 action) |
 | F-IO-2 | 출력 핀 최대 2개: `pin`, `active_high`, `source` = {slot, switch_name} → 상태 반영 |
-| F-IO-3 | 기존 기본값: 버튼 GPIO14→Mk1 ch6, GPIO12→Upower inverter; 출력 GPIO26←Mk1 ch6, GPIO25←Upower inverter (설정 마이그레이션 기본값) |
+| F-IO-3 | 단일 장치 기본 설정에서는 버튼·출력 매핑 없음. 필요 시 슬롯 0의 스위치에만 매핑 |
 
 ### F-WEB 웹 UI/API
 `13-web-api.md` 참조.
 | ID | 요구사항 |
 |---|---|
 | F-WEB-1 | 단일 페이지 UI(내장 gzip HTML/JS, 외부 CDN 의존 없음 — AP 모드에서도 동작) |
-| F-WEB-2 | 탭: 상태(Dashboard), 슬롯, 네트워크(WiFi/MQTT), 포트/IO, 시스템(로그, 재부팅, 초기화, 백업) |
-| F-WEB-3 | 상태 탭: 슬롯별 최신 값·스위치 토글·마지막 갱신 시각·오류 카운트, 3초 폴링 |
+| F-WEB-2 | 단일 화면: 상태, 장치 종류·센서 노출, 네트워크, MQTT, 시리얼 포트 설정 |
+| F-WEB-3 | 장치 최신 값·스위치 토글·온라인 상태·오류를 3초마다 갱신 |
 | F-WEB-4 | 선택적 Basic Auth (사용자/비밀번호 설정 시 활성) |
 
 ## 3. 비기능 요구사항
@@ -119,10 +118,8 @@
 
 | # | 질문 | 기본안 |
 |---|---|---|
-| Q-1 | 설정 저장소 | **확정 (2026-09-14)**: LittleFS `/config.json` (임시파일→rename 원자 저장) + NVS는 부트 카운터·마지막 Discovery 토픽 목록 등 소형 값 전용 |
+| Q-1 | 설정 저장소 | **확정 (2026-09-14)**: LittleFS `/config.json` (임시파일→rename 저장), Discovery 토픽 목록은 LittleFS `/ha-discovery.json` |
 | Q-2 | 웹 프레임워크 | **확정 (2026-09-14)**: `ESP32Async/ESPAsyncWebServer` + `ESP32Async/AsyncTCP`. 핸들러는 읽기(스냅샷)만 직접 수행, 쓰기(스위치/설정 적용/재부팅)는 큐로 넘겨 메인 루프에서 처리 |
-| Q-3 | Upower GRID_PRIO에 따른 bypass/inverter 값 0 마스킹 유지? | 옵션, 기본 off |
-| Q-4 | Upower 스토리지 모드 부활? | 2차 |
 | Q-5 | 레거시 토픽 호환 모드 및 레거시 config 삭제 버튼 | 삭제 버튼만 1차, 호환 모드 2차 |
 | Q-6 | Jbdbms 충전 제한 기능 정의 | F-JBD-5 안 |
 | Q-7 | Mk2 모멘터리/토글 명령 | 2차 |

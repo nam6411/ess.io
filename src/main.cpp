@@ -96,13 +96,25 @@ void publishSysInfo() {
 
 // 설정 변경 적용 범위 (docs/12-config-schema.md §4)
 void applyConfig(uint16_t changed) {
+    const bool topologyChanged = changed & (CFG_SLOTS | CFG_PORTS);
+    const bool mqttChanged = changed & CFG_MQTT;
+
+    // 기존 브로커 연결과 토픽 정보를 잃기 전에 retained Discovery부터 지운다.
+    if ((topologyChanged || mqttChanged) && mqtt.connected()) discovery.removeAll();
+    if ((changed & CFG_DEVICE) && !topologyChanged && !mqttChanged) discovery.publishAll();
+
     logger.setLevel(Logger::parseLevel(configStore.get().device.logLevel));
     if (changed & (CFG_WIFI | CFG_DEVICE)) net.applyConfig();
     if (changed & CFG_PORTS) scheduler.applyPorts();
     else if (changed & CFG_SLOTS) scheduler.applySlots();
-    if (changed & (CFG_MQTT | CFG_SLOTS | CFG_PORTS)) {
+
+    if (mqttChanged) {
         mqtt.applyConfig();
         subscribeAll();
+    } else if (topologyChanged) {
+        subscribeAll();
+        discovery.publishAll();
+        scheduler.publishAll();
     }
     if (changed & (CFG_IO | CFG_SLOTS)) io.applyConfig();
 }

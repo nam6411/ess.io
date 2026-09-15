@@ -13,9 +13,13 @@ public:
     const char* lastError() const override { return lastError_; }
     void toJson(JsonObject out) const override;
 
-    size_t switchCount() const override { return channelCount_; }
-    const SwitchDef* switchDef(size_t i) const override { return i < channelCount_ ? &defs_[i] : nullptr; }
-    bool switchState(size_t i) const override { return i < channelCount_ && state_[i]; }
+    size_t switchCount() const override { return activeCount_; }
+    const SwitchDef* switchDef(size_t i) const override {
+        return i < activeCount_ ? &defs_[activeChannels_[i]] : nullptr;
+    }
+    bool switchState(size_t i) const override {
+        return i < activeCount_ && state_[activeChannels_[i]];
+    }
     bool writeSwitch(size_t i, bool on) override;
 
 protected:
@@ -26,6 +30,8 @@ protected:
     PollResult pollStep() override;
 
     uint8_t channelCount_ = 0;      // 설정된 최대 채널 번호 (1..max)
+    uint8_t activeCount_ = 0;
+    uint8_t activeChannels_[MAX_CH] = {};
     bool enabled_[MAX_CH] = {};
     bool state_[MAX_CH] = {};
     char names_[MAX_CH][20] = {};

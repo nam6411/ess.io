@@ -12,6 +12,8 @@ public:
     enum Switch : uint8_t { CHARGE_FET = 0, DISCHARGE_FET, NUM_SWITCH };
 
     const char* type() const override { return "jbdbms"; }
+    const char* manufacturer() const override { return "JBD"; }
+    const char* model() const override { return "Smart BMS"; }
     bool begin(SerialPort& port, uint8_t slaveId, JsonVariantConst params) override;
     PollResult pollStep() override;
     const char* lastError() const override { return lastError_; }

@@ -73,7 +73,7 @@
 
 ```
 <base> = <base_topic>            (기본 essio/<device_id>)
-<slot> = s0 | s1 | s2 | s3        (또는 설정된 slug)
+<slot> = 설정된 단일 장치 slug
 
 <base>/status                                   online|offline (LWT)
 <base>/sys/info                                 JSON {ip, rssi, uptime, heap, fw, slots:[...]}   (60s 주기)
@@ -105,14 +105,16 @@ homeassistant/binary_sensor/<device_id>_<slot>/<entity>/config
   "dev": {
     "ids": ["<device_id>"],
     "cns": [["mac", "<mac>"]],
-    "name": "<config.device_name>",
-    "mf": "nam6411",
-    "mdl": "ess.io2",
+    "name": "<config.device.name>",
+    "mf": "<모듈 제조사>",
+    "mdl": "<모듈 모델>",
     "sw": "<fw_version>",
     "cu": "http://<ip>/"
   }
 }
 ```
+
+Discovery 토픽 목록은 `/ha-discovery.json`에 보관한다. 웹에서 장치 종류나 노출 센서를 변경하면 기존 retained config 중 더 이상 필요 없는 토픽에 빈 payload를 발행한 뒤 현재 목록만 다시 등록한다.
 - 스위치: `cmd_t`, `stat_t = <base>/<slot>/switch/<name>/state`, `pl_on/pl_off = ON/OFF`.
 - 누적 에너지(kWh): `dev_cla: energy`, `stat_cla: total_increasing`.
 - 진단 정보(rssi, uptime): `ent_cat: diagnostic`.
@@ -121,15 +123,15 @@ homeassistant/binary_sensor/<device_id>_<slot>/<entity>/config
 
 #### Upower (`<base>/<slot>/state` JSON)
 ```json
-{"pv":{"in_v":0,"in_a":0,"in_w":0,"chg_v":0,"chg_a":0,"chg_w":0,"kwh":0,"temp":0,"state":0},
- "grid":{"in_v":0,"in_a":0,"in_w":0,"chg_v":0,"chg_a":0,"chg_w":0,"kwh":0,"temp":0},
- "inv":{"in_v":0,"out_v":0,"out_a":0,"out_w":0,"hz":0},
- "bypass":{"v":0,"a":0,"w":0},
+{"pv":{"in_v":0,"in_a":0,"in_w":0,"chg_v":0,"chg_a":0,"chg_w":0,"kwh":0,"temp":0,"state":0,"day":false},
+ "grid":{"in_v":0,"chg_v":0,"chg_a":0,"chg_w":0,"kwh":0,"temp":0},
+ "inv":{"in_v":0,"out_v":0,"out_a":0,"out_va":0,"hz":0},
+ "bypass":{"v":0,"a":0,"w":0,"active":false},
  "bat":{"v":0,"temp":0,"soc":0,"state":0}}
 ```
-value_template은 중첩 키 `{{ value_json.pv.in_v }}`. 엔티티 29개(기존 25 + bat.soc, bat.state, pv.state, grid.temp 정리). 스위치 4개(`inverter, gridout_prio, solar_charge, grid_charge`) + 옵션 `storage_mode`.
+value_template은 중첩 키 `{{ value_json.pv.in_v }}`. 스위치는 4개(`inverter, gridout_prio, solar_charge, grid_charge`).
 
-device_class 정정: `_v`→voltage/V, `_a`→current/A, `_w`→power/W, `kwh`→energy/kWh total_increasing, `temp`→temperature/°C, `hz`→frequency/Hz, `soc`→battery/%, `state`→enum(sensor, `options`).
+device_class 정정: `_v`→voltage/V, `_a`→current/A, `_w`→power/W, `_va`→apparent_power/VA, `kwh`→energy/kWh total_increasing, `temp`→temperature/°C, `hz`→frequency/Hz, `soc`→battery/%, `state`→enum(sensor, `options`).
 
 #### Jbdbms
 ```json

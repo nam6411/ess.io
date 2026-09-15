@@ -7,6 +7,8 @@ namespace essio {
 class RtuSwMk1 : public RtuSwBase {
 public:
     const char* type() const override { return "rtusw_mk1"; }
+    const char* manufacturer() const override { return "Generic"; }
+    const char* model() const override { return "RTU Relay Board Mk1"; }
 
 protected:
     uint8_t maxChannels() const override { return 8; }

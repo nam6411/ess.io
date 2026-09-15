@@ -37,14 +37,13 @@
 |---|---|---|---|---|
 | U-01 | **C** | `update_data()` 285행 | `bypass.voltage = 0.0` 세미콜론 누락 | — |
 | U-02 | **C** | `update_data()` 287행 | 존재하지 않는 멤버 `inverter.*` (있는 것은 `inverter_in`/`inverter_out`) | 의도는 `inverter_out` |
-| U-03 | B | `pv_charge.state` | `(reg >> 1) && 3` → 논리 AND, 결과 0/1 | `(reg >> 1) & 0x03` |
+| U-03 | B | `pv_charge.state` | 충전 단계는 D3–D2 | `(reg >> 2) & 0x03` |
 | U-04 | B | `bypass.wattage` | `.../100; + high*65536/100` 세미콜론으로 상위 워드 무시 | 32비트 합산 |
 | U-05 | B | `change_switch` | 알 수 없는 이름 → `switch_state[-1]` 쓰기 | 이름 검증 |
 | U-06 | B | `getStringSwitchEnum` | 모든 분기 실패 시 반환값 없음(UB) | 제거 |
 | U-07 | I | Discovery | V/A/W/Hz에 device_class `energy` | 올바른 class + state_class |
 | U-08 | I | Discovery | uniq `oybw` 오타, `bypass_out_*` 이름과 "Bypass In" 표시명 불일치 | 재정의 |
 | U-09 | D | Discovery | `battery.soc`, `battery.state`, `pv.state`, `inverter.temperature`(항상 0) | soc/state/pv.state 노출, inverter temp 제거 |
-| U-10 | D | 스토리지 모드 | 전부 주석 | 옵션 기능(#Q-4) |
 | U-11 | I | `mqtt_publish("…/config","")` 40여 회 | 부팅마다 레거시 삭제 발행 | 1회성 "레거시 정리" 버튼 |
 
 ## Jbdbms

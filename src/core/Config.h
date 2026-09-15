@@ -5,9 +5,9 @@
 // 설정 데이터 모델. 스키마: docs/12-config-schema.md
 namespace essio {
 
-constexpr uint8_t SCHEMA_VERSION = 1;
+constexpr uint8_t SCHEMA_VERSION = 2;
 constexpr uint8_t MAX_PORTS = 3;
-constexpr uint8_t MAX_SLOTS = 4;
+constexpr uint8_t MAX_SLOTS = 1;
 constexpr uint8_t MAX_BUTTONS = 4;
 constexpr uint8_t MAX_OUTPUTS = 4;
 constexpr uint8_t MAX_CHANNELS = 8;

@@ -115,20 +115,16 @@ curl -s -X PUT http://192.168.4.1/api/config \
 | 포트 1 | UART2, RX16/TX17, 9600 — JBD BMS |
 | 포트 2 | SoftwareSerial, RX18/TX19, 9600 — 릴레이 보드 |
 | 슬롯 0 | `upower`, 슬레이브 10, 5초 |
-| 슬롯 1 | `jbdbms`, 16셀, 5초 |
-| 슬롯 2 | `rtusw_mk1`, 슬레이브 255, 8채널(7개 이름 지정), 3초 |
-| 슬롯 3 | 비활성 |
-| 버튼 | GPIO14 → 슬롯2 `ch6`(Mover) 토글, GPIO12 → 슬롯0 `inverter` 토글 |
-| 출력 | GPIO26 ← 슬롯2 `ch6`, GPIO25 ← 슬롯0 `inverter` |
+| 버튼/출력 | 없음 |
 | MQTT base | `essio/<device_id>` |
 | 웹 인증 | 비활성 |
 
-장치가 하나만 있으면 나머지 슬롯은 `"enabled": false`로 두면 된다. 포트에 아무것도 연결하지 않아도 해당 슬롯만 `offline`이 될 뿐 다른 기능에는 영향이 없다.
+게이트웨이 한 대에는 실제 장치 하나만 설정한다. 나머지 포트 정의는 장치 종류를 바꿀 때 선택적으로 사용할 수 있다.
 
 ## 7. 운영
 
 ### 7.1 웹 대시보드
-`http://<ip>/` — 장치 정보(IP/RSSI/MQTT 상태/힙), 슬롯별 online 배지, 스위치 토글 버튼, 원시 상태 JSON. 3초마다 갱신.
+`http://<ip>/` — 장치·시리얼·MQTT·노출 센서 설정, online 상태, 스위치 토글, 원시 상태 JSON. 상태는 3초마다 갱신된다.
 
 ### 7.2 REST API 요약 (전체: `docs/13-web-api.md`)
 
@@ -143,7 +139,7 @@ curl $B/api/config                            # 설정 (비밀번호 마스킹)
 curl $B/api/config/schema                     # 모듈 타입 목록·params 기본값
 
 curl -X POST $H $B/api/slots/0/switch/inverter -d '{"on":true}'   # 스위치
-curl -X POST $H $B/api/slots/1/poll -d '{}'                       # 즉시 폴링
+curl -X POST $H $B/api/slots/0/poll -d '{}'                       # 즉시 폴링
 curl -X POST $H $B/api/system/rediscover                          # HA Discovery 재발행
 curl -X POST $H $B/api/system/restart
 curl -X POST $H $B/api/system/factory_reset -d '{"confirm":"RESET"}'
@@ -161,13 +157,14 @@ curl -s -X PUT $H $B/api/config --data-binary @backup.json
 |---|---|
 | `wifi.*`, `device.hostname` | WiFi 재접속 (잠시 끊김) |
 | `mqtt.*` | MQTT 재접속 + Discovery 재발행 |
-| `ports[]` | 모든 포트·슬롯 재초기화 |
-| `slots[]` | 슬롯 재초기화, 구독 갱신, Discovery 재발행 |
+| `ports[]` | 포트·장치 재초기화, Discovery 동기화 |
+| `slots[]` | 장치 재초기화, 구독 갱신, 이전 Discovery 삭제 후 현재 센서 재등록 |
 | `io.*` | 버튼/출력 핀 재설정 |
 | `web.auth` | 즉시 적용 |
 
 ### 7.5 Home Assistant 연동
-- 브로커에 연결되면 `homeassistant/<sensor|switch>/<device_id>_<slug>/<entity>/config` 에 Discovery를 발행하므로 HA MQTT 통합에 장치 `"ESS Gateway"`(설정 `device.name`)가 자동 생성된다.
+- 브로커에 연결되면 `homeassistant/<sensor|switch>/<device_id>_<slug>/<entity>/config` 에 Discovery를 발행하므로 HA MQTT 통합에 설정한 이름의 장치가 자동 생성된다. 제조사·모델은 선택한 모듈(EPEVER UP5000-M6342 등)을 따른다.
+- 노출 센서나 장치 종류를 바꾸면 이전 retained Discovery를 삭제하고 현재 활성 항목만 다시 등록한다.
 - HA를 재시작하면 `homeassistant/status = online`을 받아 자동 재발행한다.
 - 엔티티가 안 보이면: HA MQTT 통합에서 Discovery 활성 여부 확인 → `POST /api/system/rediscover` → `mosquitto_sub -t 'homeassistant/#' -v`로 config 토픽 확인.
 - 상태 토픽: `essio/<device_id>/<slug>/state` (JSON), 스위치: `essio/<device_id>/<slug>/switch/<name>/state|set`, 가용성: `essio/<device_id>/status`, `.../<slug>/availability`.

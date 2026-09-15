@@ -11,7 +11,7 @@
 │   Scheduler     HaDiscovery                IoManager(btn/led)│
 │   Logger        SysInfo                                      │
 ├──────────────────────────────────────────────────────────────┤
-│  Slots[4] → IDeviceModule (Upower | Jbdbms | RtuSwMk1 | Mk2) │
+│  Device slot[1] → IDeviceModule (Upower | Jbdbms | RTU SW)   │
 ├──────────────────────────────────────────────────────────────┤
 │  Ports[3] → SerialPort (HW UART1/2, SoftwareSerial) + Modbus │
 └──────────────────────────────────────────────────────────────┘
@@ -166,7 +166,7 @@ DISABLED → (config enable) INIT → module.begin() 성공 → POLLING ↔ OFFL
 
 ## 7. HaDiscovery
 - 입력: 슬롯 목록 + 각 모듈의 `sensorDef/switchDef`.
-- 출력: `07-mqtt-homeassistant.md` B.4 형식. 슬롯 비활성화/타입 변경 시 이전 config 토픽에 빈 페이로드 발행(삭제)을 위해 마지막 발행 토픽 목록을 NVS에 기록.
+- 출력: `07-mqtt-homeassistant.md` B.4 형식. 장치 종류·센서 노출 설정 변경 시 이전 config 토픽에 빈 retained 페이로드를 발행한다. 마지막 발행 토픽 목록은 LittleFS `/ha-discovery.json`에 기록한다.
 - 레거시 정리 버튼: `03-device-upower.md` §6.5 + jbdbms/rtusw 레거시 토픽에 빈 페이로드 1회 발행.
 
 ## 8. ConfigStore

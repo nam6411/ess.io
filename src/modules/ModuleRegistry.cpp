@@ -46,16 +46,7 @@ void ModuleRegistry::defaultParams(const String& type, JsonObject out) {
         blocks["inverter"] = true;
         blocks["battery"] = true;
         out["write_retries"] = 3;
-        out["mask_by_grid_prio"] = false;
-        JsonObject sm = out["storage_mode"].to<JsonObject>();
-        sm["enabled"] = false;
-        sm["cells"] = 16;
-        sm["bcv_mv"] = 3650;
-        sm["fcv_mv"] = 3450;
-        sm["bvr_mv"] = 3380;
-        sm["storage_bcv_mv"] = 3400;
-        sm["storage_fcv_mv"] = 3300;
-        sm["storage_bvr_mv"] = 3200;
+        out["mask_inactive_output"] = false;
     } else if (type == "jbdbms") {
         out["cell_count"] = 16;
         out["ntc_count"] = 2;

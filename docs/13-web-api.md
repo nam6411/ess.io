@@ -57,14 +57,14 @@
   - RtuSw: 채널 토글 목록(이름 표시).
 - 3초 주기 `/api/slots` 폴링. 토글 클릭 → POST → 낙관적 갱신 → 다음 폴링에서 확정.
 
-### 6.2 Slots
-- 슬롯 0..3 각각: enabled, type 드롭다운, slug, label, port, slave_id, poll_interval.
+### 6.2 Device
+- 단일 장치: enabled, type 드롭다운, slug, label, slave_id, poll_interval.
 - type 선택에 따라 params 폼 동적 생성(`/api/config/schema`).
   - rtusw: 채널 표(번호/이름/사용).
-  - upower: 블록 체크박스, 재시도, 마스킹, 스토리지 모드(접힘).
+  - upower: 블록 체크박스, 재시도, 실제 바이패스 상태 기반 마스킹.
   - jbdbms: 셀 수, 노출 옵션, 충전 제한.
 - "장치 테스트" 버튼: `/api/ports/{id}/modbus` 로 슬레이브 응답 확인(Modbus 타입만).
-- 저장 → `PATCH /api/config/slots`.
+- 포트와 MQTT 설정을 함께 편집하고 저장 → `PUT /api/config`.
 
 ### 6.3 Network
 - WiFi: SSID(스캔 버튼→목록), 비밀번호, 고정 IP 접힘, AP 설정 접힘.

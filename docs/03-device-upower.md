@@ -10,9 +10,8 @@
 | 슬레이브 주소 | 10 (0x0A) |
 | 보레이트 | 115200, 8N1 |
 | 기존 포트 | SoftwareSerial RX22 / TX23 |
-| 읽기 기능코드 | FC04 Read Input Registers (측정값), FC01 Read Coils (스위치) |
+| 읽기 기능코드 | FC04 Read Input Registers, FC01 Read Coils, FC02 Read Discrete Inputs |
 | 쓰기 기능코드 | FC05 Write Single Coil (스위치) |
-| (비활성) | FC03/FC16 Holding Register 0x960D (스토리지 모드) |
 
 ## 2. 데이터 모델
 
@@ -22,7 +21,7 @@
 |---|---|
 | `pv_in` | 태양광 패널 입력 |
 | `pv_charge` | 태양광 → 배터리 충전 출력 |
-| `grid_in` | 계통(AC) 입력 (파생값 포함) |
+| `grid_in` | 계통(AC) 입력 전압 |
 | `grid_charge` | 계통 → 배터리 충전 출력 |
 | `inverter_in` | 인버터 DC 입력 |
 | `inverter_out` | 인버터 AC 출력 |
@@ -69,7 +68,7 @@
 | 6,7 | 0x351F (L), 0x3520 (H) | `pv_charge.wattage` | (L + H·65536)/100 | W |
 | 8–13 | 0x3521–0x3526 | (미사용) | | |
 | 14,15 | 0x3527 (L), 0x3528 (H) | `pv_charge.accumulate` | (L + H·65536)/100 | kWh |
-| 16 | 0x3529 | `pv_charge.state` | **(reg >> 1) & 0x03** (기존 코드는 `&&` 오타) | 0 No Charging / 1 Float / 2 Boost / 3 Equalization |
+| 16 | 0x3529 | `pv_charge.state` | **(reg >> 2) & 0x03** | 0 No Charging / 1 Float / 2 Boost / 3 Equalization |
 | 17,18 | 0x352A–0x352B | (미사용) | | |
 | 19 | 0x352C | `pv_charge.temp` | int16 /100 | ℃ |
 
@@ -82,7 +81,7 @@
 | 4 | 0x3533 | `inverter_out.voltage` | /100 | V |
 | 5 | 0x3534 | `inverter_out.current` | /100 | A |
 | 6 | 0x3535 | (미사용) | | |
-| 7,8 | 0x3536 (L), 0x3537 (H) | `inverter_out.wattage` | (L + H·65536)/100 | W |
+| 7,8 | 0x3536 (L), 0x3537 (H) | `inverter_out.apparentPower` | (L + H·65536)/100 | VA |
 | 9–11 | 0x3538–0x353A | (미사용) | | |
 | 12 | 0x353B | `inverter_out.freq` | /100 | Hz |
 
@@ -93,32 +92,26 @@
 | 0 | 0x354C | `battery.voltage` | /100 | V |
 | 1,2 | 0x354D–0x354E | (미사용) | | |
 | 3 | 0x354F | `battery.temp` | int16 /100 | ℃ |
-| 4 | 0x3550 | `battery.soc` | 그대로 | % (**읽기만 하고 발행 안 함**) |
+| 4 | 0x3550 | `battery.soc` | 그대로 | % |
 | 5,6 | 0x3551–0x3552 | (미사용) | | |
-| 7 | 0x3553 | `battery.state` | 그대로 | (**읽기만 하고 발행 안 함**) |
+| 7 | 0x3553 | `battery.state` | 그대로 | raw state |
 | 8–11 | 0x3554–0x3557 | (미사용) | | |
 | 12 | 0x3558 | `bypass.voltage` | /100 | V |
 | 13 | 0x3559 | `bypass.current` | /100 | A |
 | 14,15 | 0x355A (L), 0x355B (H) | `bypass.wattage` | (L + H·65536)/100 (기존 코드는 `;` 오타로 L만 사용) | W |
 
-### 3.5 파생값 (블록 A와 D 모두 성공 시)
+### 3.5 실제 바이패스 상태와 마스킹
 
 ```
-grid_in.current = grid_charge.current + bypass.current
-grid_in.wattage = grid_charge.wattage + bypass.wattage
+FC02 0x2100 bit0: 0 = no grid bypass, 1 = grid bypass
+FC02 0x2101 bit0: 0 = night, 1 = day
 ```
 
-### 3.6 GRID_PRIO 상태에 따른 마스킹 (의도)
+`mask_inactive_output=true`인 경우에만 위 실제 상태를 기준으로 비활성 출력의 잔류값을 0으로 마스크한다. `0x0104` 출력 우선순위 설정값은 실제 바이패스 상태로 사용하지 않는다.
 
-```
-if (switch_state[GRID_PRIO] == 0) { bypass.voltage = bypass.current = bypass.wattage = 0; }
-else                              { inverter_out.voltage = inverter_out.current = inverter_out.wattage = 0; }
-```
-- 의미: 계통 우선(바이패스) OFF이면 바이패스 출력은 0, ON이면 인버터 출력은 0으로 표기 (실제 하드웨어가 잔류값을 보고하는 것을 억제).
-- 기존 코드는 이 블록에 **컴파일 오류** 2건 (세미콜론 누락, 존재하지 않는 멤버 `inverter`). `08-legacy-issues.md` #U-01.
-- 신규 구현에서 유지할지 결정 필요 (→ `10-requirements.md` 미결 #Q-3).
+계통 충전 DC 출력 전류와 바이패스 AC 전류를 더한 값은 물리적으로 유효하지 않으므로 `grid_in.current`/`grid_in.wattage` 파생값은 노출하지 않는다.
 
-### 3.7 읽기 실패 처리
+### 3.6 읽기 실패 처리
 
 블록별 독립. 실패한 블록의 필드는 **이전 값 유지**(구조체 갱신 안 함). 반환값은 4개 결과 코드의 OR (0 = 전부 성공).
 
@@ -134,21 +127,6 @@ else                              { inverter_out.voltage = inverter_out.current 
 - 성공 시 `switch_state[type]` 갱신 + `homeassistant/switch/upower/<name>/state` 에 `"ON"/"OFF"` 즉시 발행.
 - 반환값: `result && !mqttResult` (의미 불명확, 호출측에서 사용 안 함).
 - 알 수 없는 `name` → `addr=0`, `switch_type=-1` 로 쓰기 시도 후 `switch_state[-1]` 접근 (**메모리 오류**). 신규: 이름 검증 필수.
-
-## 5. 스토리지 모드 (비활성 — 코드 주석 상태, 참고용)
-
-배터리 수명을 위해 충전 상한을 낮추는 기능. 홀딩 레지스터 `0x960D`부터 3워드 쓰기:
-
-| 레지스터 | 의미 | Full 모드 | Storage 모드 |
-|---|---|---|---|
-| 0x960D | BCV (Boost Charge Voltage) | 16 × 3.65 V = 5840 (0.01V) | 16 × 3.40 = 5440 |
-| 0x960E | FCV (Float Charge Voltage) | 16 × 3.45 = 5520 | 16 × 3.30 = 5280 |
-| 0x960F | BVR (Boost Voltage Reconnect) | 16 × 3.38 = 5408 | 16 × 3.20 = 5120 |
-
-- 셀 수 계수 `NUM_MAX_CELL = 16`.
-- 스위치 이름 `storage`, 토픽 `homeassistant/switch/upower/storage/{config,state,set}`, uniq `stsw`, 표시명 "Storage Mode".
-- 상태 판정: `readHoldingRegisters(0x960D,3)` 후 `buf[0] == STORAGE_MODE_BCV`.
-- 신규에서 옵션 기능으로 부활 가능 (→ 미결 #Q-4).
 
 ## 6. MQTT 인터페이스 (기존 토픽 — 호환성 참고)
 

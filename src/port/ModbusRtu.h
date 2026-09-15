@@ -23,6 +23,8 @@ public:
 
     // FC01: out[]에 바이트 단위 비트맵 (LSB = 첫 코일). out 크기 >= (count+7)/8
     MbResult readCoils(uint8_t slave, uint16_t addr, uint16_t count, uint8_t* out);
+    // FC02: out[]에 바이트 단위 비트맵 (LSB = 첫 discrete input).
+    MbResult readDiscreteInputs(uint8_t slave, uint16_t addr, uint16_t count, uint8_t* out);
     // FC03 / FC04: out 크기 >= count
     MbResult readHoldingRegisters(uint8_t slave, uint16_t addr, uint16_t count, uint16_t* out);
     MbResult readInputRegisters(uint8_t slave, uint16_t addr, uint16_t count, uint16_t* out);
@@ -37,6 +39,7 @@ public:
     static const char* resultName(MbResult r);
 
 private:
+    MbResult readBits(uint8_t fc, uint8_t slave, uint16_t addr, uint16_t count, uint8_t* out);
     MbResult readRegisters(uint8_t fc, uint8_t slave, uint16_t addr, uint16_t count, uint16_t* out);
     MbResult transact(uint8_t slave, uint8_t fc, const uint8_t* pdu, size_t pduLen,
                       size_t expectedLen, uint8_t* rsp, size_t& rspLen);
