@@ -55,35 +55,50 @@ void MqttManager::applyConfig() {
     if (state_ == MqttState::Disabled && active_) LOG_I("mqtt: disabled (no broker address)");
 }
 
-// 설계서 §11.6: mDNS 기본 → (브로커 AP면 게이트웨이) → 마지막 성공 IP → 수동 입력.
-// mdns_name을 비우면 mDNS를 건너뛰므로 수동 주소만 쓰게 된다.
+// 브로커 주소 찾기 (docs/15-roles.md §5): 브로커 AP 게이트웨이 → UDP 비콘 → mDNS →
+// 마지막 성공 주소(같은 SSID일 때) → 수동 입력. 설계서 §11.6의 mDNS·마지막 성공·수동 순서에
+// 즉시 판단 가능한 두 경로를 앞에 붙였다. mdns_name을 비우면 자동 탐색(게이트웨이·비콘·mDNS)을
+// 모두 건너뛰고 수동 주소만 쓴다 — 라우터가 브로드캐스트·mDNS를 막을 때의 탈출구.
 bool MqttManager::resolveBroker() {
     const auto& m = store_->get().mqtt;
+    const auto& w = store_->get().wifi;
+    port_ = m.port;
 
     if (m.mdnsName.length()) {
+        // 브로커 SoftAP(2순위 망)에 붙어 있으면 게이트웨이가 곧 브로커다
+        if (w.fallbackSsid.length() && WiFi.SSID() == w.fallbackSsid && WiFi.gatewayIP() != IPAddress((uint32_t)0)) {
+            host_ = WiFi.gatewayIP().toString();
+            addressSource_ = "gateway";
+            return true;
+        }
+
+        // 최근 30초 안에 받은 비콘 (라우터가 멀티캐스트를 막아 mDNS가 안 되는 망에서도 동작)
+        pollBeacon();
+        if (beaconMs_ && millis() - beaconMs_ < 30000) {
+            host_ = beaconHost_;
+            port_ = beaconPort_;
+            addressSource_ = "beacon";
+            return true;
+        }
+
         IPAddress ip = MDNS.queryHost(m.mdnsName.c_str(), 2000);
         if (ip != IPAddress((uint32_t)0)) {
             host_ = ip.toString();
             addressSource_ = "mdns";
             return true;
         }
-        LOG_W("mqtt: mDNS '%s.local' not resolved", m.mdnsName.c_str());
+        LOG_W("mqtt: broker '%s' not found (beacon, mDNS)", m.mdnsName.c_str());
     }
 
-    // 브로커 SoftAP(2순위 망)에 붙어 있으면 게이트웨이가 곧 브로커다.
-    // 브로커가 mDNS 응답을 못 하는 상황에서도 바로 찾을 수 있게 NVS·수동 주소보다 먼저 본다.
-    const auto& w = store_->get().wifi;
-    if (w.fallbackSsid.length() && WiFi.SSID() == w.fallbackSsid && WiFi.gatewayIP() != IPAddress((uint32_t)0)) {
-        host_ = WiFi.gatewayIP().toString();
-        addressSource_ = "gateway";
-        return true;
-    }
-
+    // 마지막 성공 주소는 "<SSID>\n<주소>"로 저장한다. 다른 망에서 얻은 주소(예: 브로커 AP의
+    // 192.168.4.1)를 라우터 망에서 계속 붙잡고 실패하던 문제 때문에 같은 SSID일 때만 쓴다.
     // 쓰기 모드로 연다: 읽기 전용은 네임스페이스가 아직 없으면 매번 오류 로그를 남긴다
     Preferences prefs;
     if (prefs.begin(NVS_NAMESPACE, false)) {
         String saved = prefs.getString(NVS_KEY_BROKER, "");
         prefs.end();
+        int nl = saved.indexOf('\n');
+        saved = nl > 0 && saved.substring(0, nl) == WiFi.SSID() ? saved.substring(nl + 1) : String();
         if (saved.length()) {
             host_ = saved;
             addressSource_ = "last_good";
@@ -102,10 +117,33 @@ bool MqttManager::resolveBroker() {
     return false;
 }
 
+// 비콘: "essio-broker <hostname> <port>". hostname이 mqtt.mdns_name과 같은 브로커만 받는다
+void MqttManager::pollBeacon() {
+    if (!beaconListening_) beaconListening_ = beaconRx_.begin(BROKER_BEACON_PORT);
+    if (!beaconListening_) return;
+    const String& want = store_->get().mqtt.mdnsName;
+    while (int len = beaconRx_.parsePacket()) {
+        char buf[64];
+        int n = beaconRx_.read((uint8_t*)buf, min(len, (int)sizeof(buf) - 1));
+        buf[n > 0 ? n : 0] = '\0';
+        char host[33];
+        unsigned port = 0;
+        if (sscanf(buf, "essio-broker %32s %u", host, &port) != 2 || !port || want != host) continue;
+        const String addr = beaconRx_.remoteIP().toString();
+        if (addr != beaconHost_) LOG_I("mqtt: broker beacon from %s:%u", addr.c_str(), port);
+        beaconHost_ = addr;
+        beaconPort_ = port;
+        beaconMs_ = millis();
+        // 재시도 대기 중이면 기다리지 않고 바로 붙는다
+        if (state_ == MqttState::Backoff) nextAttemptMs_ = millis();
+    }
+}
+
 void MqttManager::rememberAddress(const String& addr) {
     Preferences prefs;
     if (!prefs.begin(NVS_NAMESPACE, false)) return;
-    if (prefs.getString(NVS_KEY_BROKER, "") != addr) prefs.putString(NVS_KEY_BROKER, addr);
+    const String entry = WiFi.SSID() + "\n" + addr;
+    if (prefs.getString(NVS_KEY_BROKER, "") != entry) prefs.putString(NVS_KEY_BROKER, entry);
     prefs.end();
 }
 
@@ -117,12 +155,12 @@ void MqttManager::connect() {
         backoffMs_ = min(backoffMs_ * 2, BACKOFF_MAX_MS);
         return;
     }
-    client_.setServer(host_.c_str(), m.port);
+    client_.setServer(host_.c_str(), port_);
     String will = baseTopic_ + "/status";
     const char* user = m.username.length() ? m.username.c_str() : nullptr;
     const char* pass = m.password.length() ? m.password.c_str() : nullptr;
 
-    LOG_I("mqtt: connecting to %s:%u (%s) as %s", host_.c_str(), m.port, addressSource_, clientId_.c_str());
+    LOG_I("mqtt: connecting to %s:%u (%s) as %s", host_.c_str(), port_, addressSource_, clientId_.c_str());
     state_ = MqttState::Connecting;
     bool ok = client_.connect(clientId_.c_str(), user, pass, will.c_str(), 1, true, "offline");
     lastRc_ = client_.state();
@@ -151,6 +189,7 @@ void MqttManager::tick() {
         client_.loop();
         return;
     }
+    pollBeacon();
     if (state_ == MqttState::Connected) {
         LOG_W("mqtt: connection lost rc=%d", client_.state());
         state_ = MqttState::Backoff;

@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <PicoMQTT.h>
+#include <WiFiUdp.h>
 
 #include <map>
 
@@ -62,9 +63,13 @@ public:
     void publishOwnDiag(const String& baseTopic, const String& payload);
 
 private:
+    void sendBeacon();
+
     ConfigStore* store_ = nullptr;
     EssioBroker* broker_ = nullptr;
     uint16_t port_ = 1883;
+    WiFiUDP beacon_;
+    uint32_t lastBeaconMs_ = 0;
 };
 
 }  // namespace essio

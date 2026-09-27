@@ -71,6 +71,11 @@ struct OutputConfig {
 //   Display — 브로커에 붙어 모든 노드의 상태를 화면에 보이고 터치로 스위치를 조작한다.
 enum class DeviceRole : uint8_t { Node, Broker, Display };
 
+// 브로커 발견 비콘 (UDP 브로드캐스트). 라우터가 무선 단말 사이 mDNS 멀티캐스트를 제대로 넘기지 않아도
+// 브로드캐스트는 ARP·DHCP 때문에 거의 항상 전달된다. 페이로드: "essio-broker <hostname> <port>"
+constexpr uint16_t BROKER_BEACON_PORT = 47300;
+constexpr uint32_t BROKER_BEACON_INTERVAL_MS = 5000;
+
 // 디스플레이 역할이 지원하는 패널 보드 (DisplayService가 이 id로 드라이버를 고른다)
 constexpr const char* DISPLAY_PANELS[] = {"crowpanel_2_1"};
 

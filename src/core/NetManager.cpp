@@ -111,6 +111,9 @@ void NetManager::startSta(uint8_t candidate) {
     const Config& cfg = store_->get();
     candidate_ = candidate % (candidateCount() ? candidateCount() : 1);
     WiFi.mode(apActive_ ? WIFI_AP_STA : WIFI_STA);
+    // 모뎀 슬립(기본값)이면 무선이 DTIM 사이에 잠들어 멀티캐스트(mDNS 질의·응답)를 놓친다.
+    // 라우터에 붙은 디스플레이가 broker.local을 못 찾던 원인. 상시 전원 장비라 끈다.
+    WiFi.setSleep(false);
     WiFi.setHostname(hostname_.c_str());
     if (cfg.wifi.staticIp.enabled) {
         IPAddress ip, gw, sn, dns;

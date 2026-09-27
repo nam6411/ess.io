@@ -135,7 +135,31 @@ void BrokerService::end() {
 }
 
 void BrokerService::tick() {
-    if (broker_) broker_->loop();
+    if (!broker_) return;
+    broker_->loop();
+    if (millis() - lastBeaconMs_ >= BROKER_BEACON_INTERVAL_MS) {
+        lastBeaconMs_ = millis();
+        sendBeacon();
+    }
+}
+
+// 노드·디스플레이가 mDNS 없이도 브로커를 찾게 붙어 있는 망마다 브로드캐스트한다 (docs/15-roles.md §5)
+void BrokerService::sendBeacon() {
+    String host = store_->get().device.hostname.length() ? store_->get().device.hostname : String("broker");
+    host.toLowerCase();
+    const String msg = "essio-broker " + host + " " + port_;
+    IPAddress targets[2];
+    uint8_t n = 0;
+    if (WiFi.status() == WL_CONNECTED) targets[n++] = WiFi.broadcastIP();
+    if (WiFi.getMode() & WIFI_AP) {
+        IPAddress ap = WiFi.softAPIP();
+        targets[n++] = IPAddress(ap[0], ap[1], ap[2], 255);
+    }
+    for (uint8_t i = 0; i < n; i++) {
+        beacon_.beginPacket(targets[i], BROKER_BEACON_PORT);
+        beacon_.write((const uint8_t*)msg.c_str(), msg.length());
+        beacon_.endPacket();
+    }
 }
 
 bool BrokerService::publish(const String& topic, const String& payload, bool retain) {

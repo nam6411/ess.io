@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 
 #include <functional>
 #include <vector>
@@ -34,7 +35,7 @@ public:
     String discoveryPrefix() const { return store_->get().mqtt.discoveryPrefix; }
     String clientId() const { return clientId_; }
     String brokerAddress() const { return host_; }
-    // mdns | gateway | last_good | manual | none — 어느 경로로 주소를 얻었는지 (docs/13-web-api.md)
+    // gateway | beacon | mdns | last_good | manual | none — 어느 경로로 주소를 얻었는지 (docs/13-web-api.md)
     const char* addressSource() const { return addressSource_; }
 
     bool publish(const String& topic, const String& payload, bool retain = false);
@@ -54,11 +55,18 @@ private:
     // mDNS → NVS에 저장된 마지막 성공 IP → 수동 입력 주소 (설계서 §11.6)
     bool resolveBroker();
     void rememberAddress(const String& addr);
+    void pollBeacon();  // 브로커 UDP 비콘 수신 (BROKER_BEACON_PORT)
 
     ConfigStore* store_ = nullptr;
     bool (*wifiReady_)() = nullptr;
     bool active_ = true;
     WiFiClient net_;
+    WiFiUDP beaconRx_;
+    bool beaconListening_ = false;
+    String beaconHost_;
+    uint16_t beaconPort_ = 0;
+    uint32_t beaconMs_ = 0;
+    uint16_t port_ = 1883;  // 이번 접속에 쓸 포트 (비콘이 알려준 포트 우선)
     PubSubClient client_;
     MqttState state_ = MqttState::Disabled;
     String baseTopic_;

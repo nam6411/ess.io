@@ -139,16 +139,24 @@ state·switch·availability·status는 모두 `retain=true`로 발행한다.
 ## 5. 노드의 브로커 주소 해석 (설계서 §11.6)
 
 ```
-1. mDNS       mqtt.mdns_name (기본 "broker") → broker.local 조회, 2초 타임아웃
-2. 게이트웨이 브로커 AP(wifi.fallback_ssid)에 붙어 있으면 그 게이트웨이 = 브로커
-3. 마지막 성공 NVS("essio"/"broker_ip")에 저장된 주소
-4. 수동 입력   mqtt.host
+1. 게이트웨이 브로커 AP(wifi.fallback_ssid)에 붙어 있으면 그 게이트웨이 = 브로커
+2. 비콘       최근 30초 안에 받은 브로커 UDP 브로드캐스트 (포트 47300, "essio-broker <hostname> <port>")
+3. mDNS       mqtt.mdns_name (기본 "broker") → broker.local 조회, 2초 타임아웃
+4. 마지막 성공 NVS("essio"/"broker_ip")에 "<SSID>\n<주소>"로 저장. 지금 붙은 SSID와 같을 때만 쓴다
+5. 수동 입력   mqtt.host
 ```
 
-- 접속에 성공하면 그 주소를 NVS에 기록한다.
-- `mqtt.mdns_name`을 **비우면** mDNS를 건너뛰므로 수동 주소만 쓰게 된다. 라우터가 mDNS를 막을 때의 탈출구.
+- 접속에 성공하면 그 주소를 SSID와 함께 NVS에 기록한다. 예전에는 망 구분 없이 저장해, 브로커 AP에서 얻은
+  `192.168.4.1`을 라우터 망에서도 계속 붙잡고 실패했다.
+- 브로커는 붙은 망마다(라우터 STA, 자기 AP) 5초마다 비콘을 브로드캐스트한다. 무선 단말 사이 멀티캐스트를
+  제대로 넘기지 않는 공유기가 흔해 mDNS만으로는 못 찾는 경우가 있다. 비콘이 오면 재시도 대기 없이 바로 접속한다.
+- `mqtt.mdns_name`을 **비우면** 1~3(자동 탐색)을 건너뛰고 저장 주소·수동 주소만 쓴다.
+- 모든 역할에서 Wi-Fi 절전(modem sleep)을 끈다. 켜 두면 DTIM 사이에 무선이 잠들어 멀티캐스트·브로드캐스트를 놓친다.
+- **공유기의 무선 격리(AP/client isolation)가 켜져 있으면 어떤 방법으로도 보드끼리 통신할 수 없다.**
+  PC에서는 두 보드에 다 접속되는데 보드끼리는 unicast(수동 주소)도 `rc=-2`로 실패하면 이 경우다.
+  공유기에서 격리를 끄거나, 라우터 없이 브로커 AP(`RV-FALLBACK`)로 묶는다.
 - 현재 어떤 경로로 붙었는지는 `GET /api/system/info`의 `mqtt_address_source`
-  (`mdns` / `gateway` / `last_good` / `manual` / `none`)로 확인한다.
+  (`gateway` / `beacon` / `mdns` / `last_good` / `manual` / `none`)로 확인한다.
 - 브로커는 자기 AP를 띄울 때도 mDNS를 켠다(예전에는 라우터 접속 때만 켜서 AP 위에서는 `broker.local`이 안 찾혔다).
 
 ## 6. Wi-Fi 모드 (설계서 §3.1, §3.2)

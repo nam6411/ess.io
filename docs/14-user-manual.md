@@ -279,6 +279,7 @@ HTTP Basic Auth. HTTPS는 아니므로 신뢰 네트워크 내에서만 사용.
 | MQTT `backoff` 상태 | `mqtt_rc` 값: -2 네트워크, 4 인증 실패, 5 권한 없음. 브로커 로그 확인 |
 | Discovery 엔티티 이름이 옛 ess.io와 중복 | 옛 토픽은 별도 uniq_id라 두 벌 생김 → HA에서 옛 장치 삭제 (`legacy_cleanup` 자동화는 미구현) |
 | 설정이 저장 안 됨 | 로그에 `config: invalid: ...` 검증 오류 메시지 확인. `PUT`은 `202` 후 비동기 적용이므로 `/api/system/log`로 결과 확인 |
+| 노드·디스플레이가 브로커를 못 찾음 (라우터 망) | 웹 UI MQTT 카드의 브로커 주소 출처 확인. PC에서는 두 보드에 접속되는데 보드끼리 수동 주소로도 `rc=-2`면 공유기의 **무선 격리(AP/client isolation)** 가 켜져 있다 — 공유기 설정에서 끄거나 브로커 AP로 묶는다 (15-roles.md §5) |
 
 로그 레벨 변경: `PUT /api/config` `{"device":{"log_level":"debug"}}`.
 

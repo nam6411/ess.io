@@ -215,7 +215,7 @@ async function pollMqtt() {
     } else if (r.client) {
       const c = r.client;
       const ok = c.state === 'connected';
-      const src = { mdns: 'mDNS', gateway: '브로커 AP 게이트웨이', last_good: '마지막 성공 주소', manual: '수동 입력', none: '-' }[c.address_source] || c.address_source;
+      const src = { mdns: 'mDNS', gateway: '브로커 AP 게이트웨이', beacon: '브로커 비콘', last_good: '마지막 성공 주소', manual: '수동 입력', none: '-' }[c.address_source] || c.address_source;
       $('#mqttStatus').innerHTML =
         row('상태', `<span class="badge ${ok ? 'on' : 'off'}">${c.state}</span>${ok ? ` <span class="hint">${dur(c.connected_s)}</span>` : ''}`) +
         row('브로커', `${esc(c.broker || '-')}:${c.port} <span class="hint">(${src})</span>`) +
