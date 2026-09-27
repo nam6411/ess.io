@@ -1,5 +1,9 @@
 # 11. 신규 아키텍처
 
+> **역할 분기** — 이 구조는 Node 역할(장치 클라이언트)을 기준으로 쓰였다. 같은 펌웨어가 Broker
+> 역할로도 동작하며, 그때는 Slots·Ports·MqttManager가 비활성이고 `BrokerService`(PicoMQTT)가
+> 대신 올라온다. → [15-roles.md](15-roles.md)
+
 ## 1. 계층 구조
 
 ```
@@ -181,6 +185,7 @@ DISABLED → (config enable) INIT → module.begin() 성공 → POLLING ↔ OFFL
 
 ## 10. 라이브러리 (확정)
 - `ESP32Async/ESPAsyncWebServer ^3.7` + `ESP32Async/AsyncTCP ^3.3` (Q-2 확정)
+- `mlesniew/PicoMQTT ^1.1` — Broker 역할의 MQTT 서버. retained 보관은 없으므로 `BrokerService`가 직접 구현
 - `bblanchon/ArduinoJson ^7`
 - `knolleary/PubSubClient ^2.8` (버퍼 2048)
 - Modbus RTU: **자체 구현** `src/port/ModbusRtu.*` (FC01/03/04/05/06/16 + CRC16, 슬레이브·타임아웃을 호출마다 지정 가능). `ModbusMaster`는 타임아웃이 상수라 사용하지 않음

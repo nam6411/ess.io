@@ -5,14 +5,17 @@
 
 namespace essio {
 
-void Scheduler::begin(ConfigStore& store, SerialPort* ports, MqttManager& mqtt) {
+void Scheduler::begin(ConfigStore& store, SerialPort* ports, MqttManager& mqtt, bool activate) {
     store_ = &store;
     ports_ = ports;
     mqtt_ = &mqtt;
     if (!queue_) queue_ = xQueueCreate(16, sizeof(SwitchCommand));
     if (!mutex_) mutex_ = xSemaphoreCreateMutex();
-    for (uint8_t i = 0; i < MAX_SLOTS; i++) slots_[i].index = i;
-    applyPorts();
+    for (uint8_t i = 0; i < MAX_SLOTS; i++) {
+        slots_[i].index = i;
+        slots_[i].enabled = false;
+    }
+    if (activate) applyPorts();
 }
 
 void Scheduler::applyPorts() {
@@ -179,17 +182,29 @@ void Scheduler::runCommand(const SwitchCommand& cmd) {
 
 // ---- MQTT 발행 (docs/07 §B.3) ----
 
+uint8_t Scheduler::enabledCount() const {
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < MAX_SLOTS; i++) {
+        if (slots_[i].enabled) n++;
+    }
+    return n;
+}
+
+String Scheduler::slotPrefix(const Slot& s) const {
+    String base = mqtt_->baseTopic();
+    return enabledCount() <= 1 ? base : base + "/" + s.slug;
+}
+
 void Scheduler::publishAvailability(Slot& s, bool online) {
     if (!mqtt_->connected()) return;
-    mqtt_->publish(mqtt_->baseTopic() + "/" + s.slug + "/availability", online ? "online" : "offline", true);
+    mqtt_->publish(slotPrefix(s) + "/availability", online ? "online" : "offline", true);
 }
 
 void Scheduler::publishSwitch(Slot& s, size_t idx) {
     if (!mqtt_->connected()) return;
     const SwitchDef* d = s.module->switchDef(idx);
     if (!d) return;
-    mqtt_->publish(mqtt_->baseTopic() + "/" + s.slug + "/switch/" + d->name + "/state",
-                   s.module->switchState(idx) ? "ON" : "OFF");
+    mqtt_->publish(slotPrefix(s) + "/switch/" + d->name + "/state", s.module->switchState(idx) ? "ON" : "OFF", true);
 }
 
 void Scheduler::publishSlot(Slot& s) {
@@ -199,7 +214,7 @@ void Scheduler::publishSlot(Slot& s) {
     s.module->toJson(root);
     String payload;
     serializeJson(doc, payload);
-    mqtt_->publish(mqtt_->baseTopic() + "/" + s.slug + "/state", payload);
+    mqtt_->publish(slotPrefix(s) + "/state", payload, true);
     for (size_t i = 0; i < s.module->switchCount(); i++) publishSwitch(s, i);
 }
 

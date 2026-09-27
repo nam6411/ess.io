@@ -5,6 +5,7 @@
 
 #include <functional>
 
+#include "BrokerService.h"
 #include "Config.h"
 #include "HaDiscovery.h"
 #include "MqttManager.h"
@@ -21,7 +22,8 @@ class WebApi {
 public:
     using ApplyHandler = std::function<void(uint16_t changedSections)>;
 
-    void begin(ConfigStore& store, NetManager& net, MqttManager& mqtt, Scheduler& scheduler, HaDiscovery& discovery);
+    void begin(ConfigStore& store, NetManager& net, MqttManager& mqtt, Scheduler& scheduler, HaDiscovery& discovery,
+               BrokerService& broker);
     void tick();  // 메인 루프: pending 처리
     void setApplyHandler(ApplyHandler h) { onApply_ = h; }
 
@@ -38,7 +40,11 @@ private:
     void handleSchema(AsyncWebServerRequest* req);
     void handleLog(AsyncWebServerRequest* req);
     void handleSwitch(AsyncWebServerRequest* req, JsonVariant& json);
+    void handleModes(AsyncWebServerRequest* req);
+    void handleModeSet(AsyncWebServerRequest* req, JsonVariant& json);
     void queueAction(AsyncWebServerRequest* req, PendingAction action);
+    // 현재 동작 모드 id: "broker" | <드라이버 type> | "idle"
+    String currentMode() const;
 
     AsyncWebServer server_{80};
     ConfigStore* store_ = nullptr;
@@ -46,6 +52,7 @@ private:
     MqttManager* mqtt_ = nullptr;
     Scheduler* scheduler_ = nullptr;
     HaDiscovery* discovery_ = nullptr;
+    BrokerService* broker_ = nullptr;
     ApplyHandler onApply_;
 
     SemaphoreHandle_t mutex_ = nullptr;

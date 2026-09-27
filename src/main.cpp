@@ -1,7 +1,12 @@
-// ess.io2 — 조립만 담당. 구조: docs/11-architecture.md
+// ess.io2 — 조립만 담당. 구조: docs/11-architecture.md, 역할: docs/15-roles.md
+//
+// 한 펌웨어가 두 가지로 동작한다. 웹 UI에서 고른 device.role이 어느 쪽인지 결정한다.
+//   Broker — 내장 MQTT 호스트. 장치 폴링·슬롯 없음.
+//   Node   — 장치 1대를 폴링해 브로커로 발행하는 클라이언트.
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 
+#include "core/BrokerService.h"
 #include "core/Config.h"
 #include "core/HaDiscovery.h"
 #include "core/IoManager.h"
@@ -27,13 +32,15 @@ SerialPort ports[MAX_PORTS];
 Scheduler scheduler;
 HaDiscovery discovery;
 IoManager io;
+BrokerService broker;
 WebApi web;
 
+bool brokerRole = false;
 uint32_t lastSysInfoMs = 0;
 
 bool wifiReady() { return net.staConnected(); }
 
-// MQTT 수신: <base>/<slug>/switch/<name>/set, <base>/sys/cmd, <prefix>/status (docs/07 §B.3)
+// MQTT 수신 (Node 역할): <prefix>/switch/<name>/set, <base>/sys/cmd, <discovery>/status
 void onMqttMessage(const String& topic, const String& payload) {
     String base = mqtt.baseTopic();
 
@@ -51,20 +58,16 @@ void onMqttMessage(const String& topic, const String& payload) {
         else if (payload == "factory_reset") { configStore.remove(); delay(200); ESP.restart(); }
         return;
     }
-    if (!topic.startsWith(base + "/") || !topic.endsWith("/set")) return;
+    if (!topic.endsWith("/set")) return;
 
-    // <base>/<slug>/switch/<name>/set
-    String rest = topic.substring(base.length() + 1);
-    int p1 = rest.indexOf("/switch/");
-    if (p1 < 0) return;
-    String slug = rest.substring(0, p1);
-    String name = rest.substring(p1 + 8, rest.length() - 4);
     for (uint8_t i = 0; i < scheduler.slotCount(); i++) {
         Slot* s = scheduler.slot(i);
-        if (s->enabled && s->slug == slug) {
-            scheduler.enqueueSwitch(i, name.c_str(), payload == "ON");
-            return;
-        }
+        if (!s->enabled) continue;
+        String p = scheduler.slotPrefix(*s) + "/switch/";
+        if (!topic.startsWith(p)) continue;
+        String name = topic.substring(p.length(), topic.length() - 4);
+        scheduler.enqueueSwitch(i, name.c_str(), payload == "ON");
+        return;
     }
     LOG_W("mqtt: no slot for %s", topic.c_str());
 }
@@ -76,20 +79,29 @@ void subscribeAll() {
     mqtt.subscribe(base + "/sys/cmd");
     for (uint8_t i = 0; i < scheduler.slotCount(); i++) {
         Slot* s = scheduler.slot(i);
-        if (s->enabled) mqtt.subscribe(base + "/" + s->slug + "/switch/+/set");
+        if (s->enabled) mqtt.subscribe(scheduler.slotPrefix(*s) + "/switch/+/set");
     }
 }
 
 void onMqttConnected() {
+    mqtt.publish(mqtt.baseTopic() + "/status", "online", true);
     discovery.publishAll();
     scheduler.publishAll();
 }
 
 void publishSysInfo() {
-    if (!mqtt.connected()) return;
     JsonDocument doc;
     sysInfoJson(doc, net, mqtt);
+    doc["role"] = ConfigStore::roleName(configStore.role());
     String payload;
+    if (brokerRole) {
+        broker.statusJson(doc["broker"].to<JsonObject>());
+        serializeJson(doc, payload);
+        broker.publishOwnDiag("rv/broker", payload);
+        broker.publishOwnStatus("rv/broker", true);
+        return;
+    }
+    if (!mqtt.connected()) return;
     serializeJson(doc, payload);
     mqtt.publish(mqtt.baseTopic() + "/sys/info", payload);
 }
@@ -97,7 +109,22 @@ void publishSysInfo() {
 // 설정 변경 적용 범위 (docs/12-config-schema.md §4)
 void applyConfig(uint16_t changed) {
     logger.setLevel(Logger::parseLevel(configStore.get().device.logLevel));
+
+    if (changed & CFG_ROLE) {
+        // 역할 전환은 브로커·스케줄러·포트 소유권이 통째로 바뀌므로 재부팅으로만 적용한다.
+        LOG_W("role changed to '%s', restarting", ConfigStore::roleName(configStore.role()));
+        delay(300);
+        ESP.restart();
+        return;
+    }
+
     if (changed & (CFG_WIFI | CFG_DEVICE)) net.applyConfig();
+
+    if (brokerRole) {
+        if (changed & CFG_BROKER) broker.begin(configStore);
+        return;
+    }
+
     if (changed & CFG_PORTS) scheduler.applyPorts();
     else if (changed & CFG_SLOTS) scheduler.applySlots();
     if (changed & (CFG_MQTT | CFG_SLOTS | CFG_PORTS)) {
@@ -117,18 +144,27 @@ void setup() {
 
     configStore.begin();
     logger.setLevel(Logger::parseLevel(configStore.get().device.logLevel));
+    brokerRole = configStore.isBroker();
+    LOG_I("role: %s", ConfigStore::roleName(configStore.role()));
 
     net.begin(configStore);
-    mqtt.begin(configStore, wifiReady);
-    mqtt.setMessageHandler(onMqttMessage);
-    mqtt.setConnectedHandler(onMqttConnected);
 
-    scheduler.begin(configStore, ports, mqtt);
+    // 양쪽 역할 모두 포인터는 연결해 둔다. Broker 역할에서는 active=false로 두어
+    // MQTT 클라이언트가 접속하지 않고 슬롯·포트도 만들지 않는다(웹 API 조회만 안전하게 동작).
+    mqtt.begin(configStore, wifiReady, !brokerRole);
+    scheduler.begin(configStore, ports, mqtt, !brokerRole);
     discovery.begin(configStore, mqtt, scheduler);
-    io.begin(configStore, scheduler);
-    subscribeAll();
 
-    web.begin(configStore, net, mqtt, scheduler, discovery);
+    if (brokerRole) {
+        broker.begin(configStore);
+    } else {
+        mqtt.setMessageHandler(onMqttMessage);
+        mqtt.setConnectedHandler(onMqttConnected);
+        io.begin(configStore, scheduler);
+        subscribeAll();
+    }
+
+    web.begin(configStore, net, mqtt, scheduler, discovery, broker);
     web.setApplyHandler(applyConfig);
 
     esp_task_wdt_init(WDT_TIMEOUT_S, true);
@@ -139,9 +175,15 @@ void setup() {
 void loop() {
     esp_task_wdt_reset();
     net.tick();
-    mqtt.tick();
-    io.tick();
-    scheduler.tick();
+
+    if (brokerRole) {
+        broker.tick();
+    } else {
+        mqtt.tick();
+        io.tick();
+        scheduler.tick();
+    }
+
     web.tick();
 
     uint32_t now = millis();

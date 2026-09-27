@@ -5,47 +5,118 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ess.io2</title>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f4f5; color: #18181b; }
-  h1 { font-size: 1.25rem; margin: 0 0 12px; }
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 16px; max-width: 40rem;
+         background: #f4f4f5; color: #18181b; }
+  @media (prefers-color-scheme: dark) { body { background: #111; color: #e5e5e5; } .card { background: #1c1c1e !important; } }
+  h1 { font-size: 1.2rem; margin: 0 0 12px; }
+  h2 { font-size: .9rem; margin: 0 0 8px; color: #71717a; font-weight: 600; }
   .card { background: #fff; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
-  .row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid #eee; }
+  .row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,.2); }
   .row:last-child { border-bottom: 0; }
-  .badge { padding: 2px 8px; border-radius: 999px; font-size: .75rem; background: #e4e4e7; }
-  .on { background: #dcfce7; } .off { background: #fee2e2; }
-  button { padding: 4px 10px; border: 1px solid #d4d4d8; border-radius: 6px; background: #fff; cursor: pointer; }
-  pre { font-size: .75rem; overflow-x: auto; }
+  .badge { padding: 2px 8px; border-radius: 999px; font-size: .75rem; background: rgba(128,128,128,.25); }
+  .on { background: #dcfce7; color: #166534; } .off { background: #fee2e2; color: #991b1b; }
+  button, select { padding: 6px 10px; border: 1px solid rgba(128,128,128,.4); border-radius: 6px;
+                   background: transparent; color: inherit; font: inherit; cursor: pointer; }
+  button.primary { background: #0d6b60; color: #fff; border-color: #0d6b60; }
+  pre { font-size: .72rem; overflow-x: auto; margin: 8px 0 0; }
+  .mode { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .hint { font-size: .78rem; color: #71717a; margin-top: 6px; }
 </style>
 </head>
 <body>
 <h1>ess.io2 <span id="dev" class="badge"></span></h1>
+
+<div class="card">
+  <h2>동작 모드</h2>
+  <div class="mode">
+    <select id="mode"></select>
+    <button class="primary" onclick="setMode()">적용</button>
+  </div>
+  <div class="hint" id="modeHint">브로커(MQTT 호스트)로 쓸지, 어느 장치의 클라이언트로 쓸지 고릅니다. 역할이 바뀌면 재부팅됩니다.</div>
+</div>
+
 <div class="card" id="sys">loading…</div>
+<div id="brokerCard"></div>
 <div id="slots"></div>
-<div class="card"><small>임시 대시보드. 정식 UI는 docs/13-web-api.md §6 참조.</small></div>
+
+<div class="card">
+  <button onclick="post('/api/system/rediscover')">HA 재발행</button>
+  <button onclick="post('/api/system/restart')">재부팅</button>
+</div>
+
 <script>
 const $ = s => document.querySelector(s);
-async function api(path, opt) { const r = await fetch(path, opt); return r.json(); }
+const H = { 'Content-Type': 'application/json', 'X-Requested-With': 'essio' };
+let modesLoaded = false;
+
+async function api(p, o) { const r = await fetch(p, o); return r.json(); }
+async function post(p, body) {
+  const r = await api(p, { method: 'POST', headers: H, body: JSON.stringify(body || {}) });
+  if (r.error) alert(r.error + ': ' + r.message);
+  return r;
+}
+
+async function loadModes() {
+  const m = await api('/api/system/modes');
+  $('#mode').innerHTML = m.modes.map(x =>
+    `<option value="${x.id}" ${x.id === m.current ? 'selected' : ''}>${x.label}</option>`).join('');
+  modesLoaded = true;
+}
+
+async function setMode() {
+  const mode = $('#mode').value;
+  const r = await post('/api/system/mode', { mode });
+  if (r.ok) {
+    $('#modeHint').textContent = r.restart_required
+      ? `${mode} 로 전환 중 — 재부팅합니다. 잠시 후 새로고침하세요.`
+      : `${mode} 적용됨.`;
+  }
+}
+
 async function toggle(slot, name, on) {
-  await api(`/api/slots/${slot}/switch/${name}`, {method:'POST', headers:{'Content-Type':'application/json','X-Requested-With':'essio'}, body: JSON.stringify({on})});
+  await post(`/api/slots/${slot}/switch/${name}`, { on });
   setTimeout(refresh, 800);
 }
+
 async function refresh() {
   try {
+    if (!modesLoaded) await loadModes();
     const sys = await api('/api/system/info');
-    $('#dev').textContent = sys.device_id;
-    $('#sys').innerHTML = `<div class="row"><span>IP</span><span>${sys.ip || sys.ap_ip}</span></div>
-      <div class="row"><span>WiFi</span><span>${sys.wifi_state} (${sys.rssi} dBm)</span></div>
-      <div class="row"><span>MQTT</span><span>${sys.mqtt_state}</span></div>
+    $('#dev').textContent = `${sys.device_id} · ${sys.mode}`;
+    $('#sys').innerHTML = `<h2>상태</h2>
+      <div class="row"><span>IP</span><span>${sys.ip || sys.ap_ip || '-'}</span></div>
+      <div class="row"><span>WiFi</span><span>${sys.wifi_state} ${sys.rssi ? `(${sys.rssi} dBm)` : ''}</span></div>
+      <div class="row"><span>역할</span><span>${sys.role}</span></div>
+      <div class="row"><span>토픽 접두</span><span>${sys.base_topic || '-'}</span></div>
       <div class="row"><span>Heap</span><span>${sys.heap_free}</span></div>
       <div class="row"><span>Uptime</span><span>${sys.uptime_s}s</span></div>`;
+
+    if (sys.role === 'broker' && sys.broker) {
+      const b = sys.broker;
+      $('#brokerCard').innerHTML = `<div class="card"><h2>브로커</h2>
+        <div class="row"><span>수신 대기</span><span class="badge ${b.active ? 'on' : 'off'}">:${b.port}</span></div>
+        <div class="row"><span>접속 클라이언트</span><span>${b.clients ?? 0}</span></div>
+        <div class="row"><span>보관 중 retained</span><span>${b.retained ?? 0}</span></div>
+        <div class="row"><span>메시지 / 재생</span><span>${b.messages ?? 0} / ${b.replays ?? 0}</span></div>
+        <div class="row"><span>거부 / 누락</span><span>${b.rejected ?? 0} / ${b.dropped ?? 0}</span></div></div>`;
+      $('#slots').innerHTML = '';
+      return;
+    }
+    $('#brokerCard').innerHTML = `<div class="card"><h2>브로커 접속</h2>
+      <div class="row"><span>주소</span><span>${sys.mqtt_broker || '-'} (${sys.mqtt_address_source})</span></div>
+      <div class="row"><span>상태</span><span class="badge ${sys.mqtt_state === 'connected' ? 'on' : 'off'}">${sys.mqtt_state}</span></div></div>`;
+
     const slots = await api('/api/slots');
     $('#slots').innerHTML = slots.filter(s => s.enabled).map(s => `
       <div class="card">
-        <div class="row"><b>${s.label || s.slug}</b><span class="badge ${s.online ? 'on' : 'off'}">${s.online ? 'online' : 'offline'}</span></div>
+        <div class="row"><b>${s.label || s.slug}</b>
+          <span class="badge ${s.online ? 'on' : 'off'}">${s.online ? 'online' : 'offline'}</span></div>
         ${(s.switches || []).map(w => `<div class="row"><span>${w.label}</span>
           <button onclick="toggle(${s.index}, '${w.name}', ${!w.on})" class="badge ${w.on ? 'on' : 'off'}">${w.on ? 'ON' : 'OFF'}</button></div>`).join('')}
-        <pre>${JSON.stringify(s.state, null, 1)}</pre>
-        ${s.last_error ? `<small>last error: ${s.last_error}</small>` : ''}
-      </div>`).join('');
+        <pre>${JSON.stringify(s.state ?? {}, null, 1)}</pre>
+        ${s.last_error ? `<div class="hint">last error: ${s.last_error}</div>` : ''}
+      </div>`).join('') || '<div class="card">활성 슬롯 없음 (유휴 모드)</div>';
   } catch (e) { $('#sys').textContent = 'error: ' + e; }
 }
 refresh(); setInterval(refresh, 3000);

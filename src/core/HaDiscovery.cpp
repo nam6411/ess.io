@@ -35,17 +35,18 @@ String HaDiscovery::configTopic(const char* component, const Slot& s, const char
 void HaDiscovery::publishSensor(const Slot& s, const SensorDef& d) {
     JsonDocument doc;
     String base = mqtt_->baseTopic();
+    String prefix = scheduler_->slotPrefix(s);
     doc["uniq_id"] = deviceId() + "_" + s.slug + "_" + d.key;
     doc["obj_id"] = s.slug + "_" + d.key;
     doc["name"] = d.label;
-    doc["stat_t"] = base + "/" + s.slug + "/state";
+    doc["stat_t"] = prefix + "/state";
     doc["val_tpl"] = String("{{ value_json.") + d.jsonPath + " }}";
     if (d.unit[0]) doc["unit_of_meas"] = d.unit;
     if (d.devClass[0]) doc["dev_cla"] = d.devClass;
     if (d.stateClass[0]) doc["stat_cla"] = d.stateClass;
     JsonArray avty = doc["avty"].to<JsonArray>();
     avty.add<JsonObject>()["t"] = base + "/status";
-    avty.add<JsonObject>()["t"] = base + "/" + s.slug + "/availability";
+    avty.add<JsonObject>()["t"] = prefix + "/availability";
     doc["avty_mode"] = "all";
     deviceJson(doc["dev"].to<JsonObject>());
     String payload;
@@ -56,16 +57,17 @@ void HaDiscovery::publishSensor(const Slot& s, const SensorDef& d) {
 void HaDiscovery::publishSwitch(const Slot& s, const SwitchDef& d) {
     JsonDocument doc;
     String base = mqtt_->baseTopic();
+    String prefix = scheduler_->slotPrefix(s);
     doc["uniq_id"] = deviceId() + "_" + s.slug + "_" + d.name;
     doc["obj_id"] = s.slug + "_" + d.name;
     doc["name"] = d.label;
-    doc["stat_t"] = base + "/" + s.slug + "/switch/" + d.name + "/state";
-    doc["cmd_t"] = base + "/" + s.slug + "/switch/" + d.name + "/set";
+    doc["stat_t"] = prefix + "/switch/" + d.name + "/state";
+    doc["cmd_t"] = prefix + "/switch/" + d.name + "/set";
     doc["pl_on"] = "ON";
     doc["pl_off"] = "OFF";
     JsonArray avty = doc["avty"].to<JsonArray>();
     avty.add<JsonObject>()["t"] = base + "/status";
-    avty.add<JsonObject>()["t"] = base + "/" + s.slug + "/availability";
+    avty.add<JsonObject>()["t"] = prefix + "/availability";
     doc["avty_mode"] = "all";
     deviceJson(doc["dev"].to<JsonObject>());
     String payload;

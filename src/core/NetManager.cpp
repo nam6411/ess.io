@@ -14,29 +14,95 @@ void NetManager::begin(ConfigStore& store) {
     applyConfig();
 }
 
+uint8_t NetManager::candidateCount() const {
+    const auto& w = store_->get().wifi;
+    uint8_t n = 0;
+    if (w.ssid.length()) n++;
+    if (w.fallbackSsid.length()) n++;
+    return n;
+}
+
+const char* NetManager::candidateSsid(uint8_t i) const {
+    const auto& w = store_->get().wifi;
+    if (w.ssid.length()) {
+        if (i == 0) return w.ssid.c_str();
+        return w.fallbackSsid.c_str();
+    }
+    return w.fallbackSsid.c_str();
+}
+
+const char* NetManager::candidatePassword(uint8_t i) const {
+    const auto& w = store_->get().wifi;
+    if (w.ssid.length()) {
+        if (i == 0) return w.password.c_str();
+        return w.fallbackPassword.c_str();
+    }
+    return w.fallbackPassword.c_str();
+}
+
 void NetManager::applyConfig() {
     const Config& cfg = store_->get();
-    hostname_ = cfg.device.hostname.length() ? cfg.device.hostname : "essio-" + deviceId();
-    apSsid_ = cfg.wifi.ap.ssid.length() ? cfg.wifi.ap.ssid : "essio-" + deviceId();
+    const bool broker = cfg.device.role == DeviceRole::Broker;
+
+    hostname_ = cfg.device.hostname.length() ? cfg.device.hostname
+                                            : (broker ? String("broker") : "rv-node-" + deviceId());
     hostname_.toLowerCase();
+    // 브로커의 SoftAP는 노드들이 2순위로 찾아오는 망이므로 이름을 고정한다(설계서 §3.2).
+    apSsid_ = cfg.wifi.ap.ssid.length() ? cfg.wifi.ap.ssid
+                                        : (broker ? (cfg.wifi.fallbackSsid.length() ? cfg.wifi.fallbackSsid
+                                                                                    : String("RV-FALLBACK"))
+                                                  : "RV-SETUP-" + deviceId());
 
     WiFi.disconnect(true, false);
     stopAp();
     mdnsStarted_ = false;
     MDNS.end();
+    candidate_ = 0;
+    lastScanMs_ = millis();
 
-    if (cfg.wifi.ssid.length() > 0) {
-        startSta();
-    } else {
-        LOG_I("net: no SSID, AP only");
+    if (candidateCount() == 0) {
+        LOG_I("net: no SSID configured, AP only");
         WiFi.mode(WIFI_AP);
         startAp();
         state_ = NetState::ApOnly;
+        return;
     }
+
+    // 설계서 §3.1 — 브로커는 라우터가 보일 때만 STA로 간다. 안 보이면 바로 SoftAP 단독.
+    if (broker && cfg.wifi.ssid.length() && !routerVisible()) {
+        LOG_I("net: router '%s' not visible, SoftAP only", cfg.wifi.ssid.c_str());
+        WiFi.mode(WIFI_AP);
+        startAp();
+        state_ = NetState::ApOnly;
+        return;
+    }
+
+    startSta(0);
 }
 
-void NetManager::startSta() {
+bool NetManager::routerVisible() {
+    const String& target = store_->get().wifi.ssid;
+    if (!target.length()) return false;
+    lastScanMs_ = millis();
+    // AP가 떠 있으면 스캔 동안만 APSTA로 둔다. WIFI_STA로 바꾸면 접속한 노드들이 끊긴다.
+    // 설계서 §3.1도 "전환 중에만 APSTA를 짧게 유지"로 허용한다.
+    WiFi.mode(apActive_ ? WIFI_AP_STA : WIFI_STA);
+    int n = WiFi.scanNetworks(false, false, false, 400);  // 채널당 400ms ≈ 5초
+    bool found = false;
+    for (int i = 0; i < n; i++) {
+        if (WiFi.SSID(i) == target) {
+            found = true;
+            LOG_I("net: router '%s' found (%d dBm)", target.c_str(), WiFi.RSSI(i));
+            break;
+        }
+    }
+    WiFi.scanDelete();
+    return found;
+}
+
+void NetManager::startSta(uint8_t candidate) {
     const Config& cfg = store_->get();
+    candidate_ = candidate % (candidateCount() ? candidateCount() : 1);
     WiFi.mode(apActive_ ? WIFI_AP_STA : WIFI_STA);
     WiFi.setHostname(hostname_.c_str());
     if (cfg.wifi.staticIp.enabled) {
@@ -49,16 +115,19 @@ void NetManager::startSta() {
             LOG_W("net: invalid static IP config, using DHCP");
         }
     }
-    LOG_I("net: connecting to %s", cfg.wifi.ssid.c_str());
-    WiFi.begin(cfg.wifi.ssid.c_str(), cfg.wifi.password.c_str());
-    staStartMs_ = millis();
+    LOG_I("net: connecting to %s", candidateSsid(candidate_));
+    WiFi.begin(candidateSsid(candidate_), candidatePassword(candidate_));
+    attemptStartMs_ = millis();
+    if (!staDownSinceMs_) staDownSinceMs_ = millis();
     state_ = apActive_ ? NetState::ApSta : NetState::StaConnecting;
 }
 
 void NetManager::startAp() {
     if (apActive_) return;
     const Config& cfg = store_->get();
-    WiFi.softAP(apSsid_.c_str(), cfg.wifi.ap.password.length() ? cfg.wifi.ap.password.c_str() : nullptr);
+    uint8_t maxConn = cfg.broker.maxClients > 8 ? 8 : cfg.broker.maxClients;  // ESP32 softAP 상한
+    WiFi.softAP(apSsid_.c_str(), cfg.wifi.ap.password.length() ? cfg.wifi.ap.password.c_str() : nullptr, 1, 0,
+                maxConn);
     dns_.setErrorReplyCode(DNSReplyCode::NoError);
     dns_.start(53, "*", WiFi.softAPIP());
     apActive_ = true;
@@ -77,6 +146,7 @@ void NetManager::startMdns() {
     if (mdnsStarted_) return;
     if (MDNS.begin(hostname_.c_str())) {
         MDNS.addService("http", "tcp", 80);
+        if (store_->isBroker()) MDNS.addService("mqtt", "tcp", store_->get().broker.port);
         mdnsStarted_ = true;
         LOG_I("net: mDNS %s.local", hostname_.c_str());
     } else {
@@ -87,17 +157,16 @@ void NetManager::startMdns() {
 void NetManager::onEvent(WiFiEvent_t event) {
     switch (event) {
         case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-            LOG_I("net: connected, IP %s RSSI %d", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+            LOG_I("net: connected to %s, IP %s RSSI %d", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(),
+                  WiFi.RSSI());
+            staDownSinceMs_ = 0;
             state_ = apActive_ ? NetState::ApSta : NetState::StaConnected;
             break;
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-            if (state_ == NetState::StaConnected || state_ == NetState::ApSta) {
-                LOG_W("net: disconnected");
-            }
+            if (state_ == NetState::StaConnected || state_ == NetState::ApSta) LOG_W("net: disconnected");
             if (state_ != NetState::ApOnly) {
+                if (!staDownSinceMs_) staDownSinceMs_ = millis();
                 state_ = apActive_ ? NetState::ApSta : NetState::StaConnecting;
-                staStartMs_ = millis();
-                WiFi.reconnect();
             }
             break;
         default:
@@ -109,19 +178,57 @@ void NetManager::tick() {
     if (apActive_) dns_.processNextRequest();
 
     const Config& cfg = store_->get();
-    bool sta = staConnected();
+    const bool broker = cfg.device.role == DeviceRole::Broker;
+    const uint32_t now = millis();
 
-    if (sta) {
+    if (staConnected()) {
         startMdns();
         if (apActive_ && !cfg.wifi.ap.keepWhenStaOk && state_ == NetState::ApSta) {
             stopAp();
             WiFi.mode(WIFI_STA);
             state_ = NetState::StaConnected;
         }
-    } else if (state_ == NetState::StaConnecting) {
-        // F-SYS-3: 접속 실패가 지속되면 AP 병행 기동
-        if (millis() - staStartMs_ > (uint32_t)cfg.wifi.ap.fallbackAfterS * 1000UL) {
-            LOG_W("net: STA timeout, starting AP fallback");
+        return;
+    }
+
+    if (state_ == NetState::ApOnly) {
+        // 브로커: 라우터가 돌아왔는지 30초마다 확인해 STA로 승격 (설계서 §3.1)
+        if (broker && cfg.wifi.ssid.length() && now - lastScanMs_ >= RESCAN_INTERVAL_MS) {
+            if (routerVisible()) {
+                LOG_I("net: router back, switching to STA");
+                stopAp();
+                startSta(0);
+            } else {
+                WiFi.mode(WIFI_AP);  // 스캔용 APSTA에서 AP 단독으로 복귀 (AP·DNS는 그대로 유지)
+            }
+        }
+        return;
+    }
+
+    if (state_ != NetState::StaConnecting && state_ != NetState::ApSta) return;
+
+    // 후보 SSID를 일정 시간마다 번갈아 시도 (노드: 라우터 → 브로커 SoftAP)
+    if (now - attemptStartMs_ >= ATTEMPT_TIMEOUT_MS) {
+        uint8_t n = candidateCount();
+        if (n > 1) {
+            LOG_W("net: '%s' timed out, trying next SSID", candidateSsid(candidate_));
+            startSta(candidate_ + 1);
+        } else {
+            WiFi.reconnect();
+            attemptStartMs_ = now;
+        }
+    }
+
+    // 계속 못 붙으면 설정용 AP를 함께 띄운다. 브로커는 APSTA를 피해 AP 단독으로 내려간다.
+    if (!apActive_ && staDownSinceMs_ && now - staDownSinceMs_ >= (uint32_t)cfg.wifi.ap.fallbackAfterS * 1000UL) {
+        if (broker) {
+            LOG_W("net: STA failed for %us, SoftAP only", cfg.wifi.ap.fallbackAfterS);
+            WiFi.disconnect(true, false);
+            WiFi.mode(WIFI_AP);
+            startAp();
+            state_ = NetState::ApOnly;
+        } else {
+            LOG_W("net: STA failed for %us, starting setup AP alongside", cfg.wifi.ap.fallbackAfterS);
             WiFi.mode(WIFI_AP_STA);
             startAp();
             state_ = NetState::ApSta;

@@ -59,8 +59,14 @@ struct OutputConfig {
     SwitchRef source;
 };
 
+// 이 보드가 무엇으로 동작하는가 (docs/15-roles.md)
+//   Broker — 로컬 MQTT 호스트. 장치 폴링 없음.
+//   Node   — 장치 1대를 물고 폴링해 브로커로 발행하는 클라이언트.
+enum class DeviceRole : uint8_t { Node, Broker };
+
 struct Config {
     struct {
+        DeviceRole role = DeviceRole::Node;
         String name = "ESS Gateway";
         String hostname;
         String logLevel = "info";
@@ -69,6 +75,9 @@ struct Config {
     struct {
         String ssid;
         String password;
+        // 라우터가 없을 때 브로커가 띄우는 SoftAP (노드의 2순위 접속 대상)
+        String fallbackSsid;
+        String fallbackPassword;
         struct {
             bool enabled = false;
             String ip, gateway, subnet, dns;
@@ -81,9 +90,11 @@ struct Config {
         } ap;
     } wifi;
 
+    // Node 역할: 접속할 브로커
     struct {
         bool enabled = true;
         String host;
+        String mdnsName = "broker";  // <mdnsName>.local 탐색. 비우면 수동 주소만 사용
         uint16_t port = 1883;
         String username;
         String password;
@@ -95,6 +106,15 @@ struct Config {
         uint32_t publishMinIntervalMs = 1000;
         bool legacyTopics = false;
     } mqtt;
+
+    // Broker 역할: 내장 MQTT 호스트
+    struct {
+        uint16_t port = 1883;
+        String username;  // 비우면 익명 허용
+        String password;
+        uint8_t maxClients = 8;
+        uint16_t retainSlots = 48;  // 보관할 retained 토픽 수
+    } broker;
 
     struct {
         bool enabled = false;
@@ -119,6 +139,8 @@ enum ConfigSection : uint16_t {
     CFG_PORTS = 1 << 4,
     CFG_SLOTS = 1 << 5,
     CFG_IO = 1 << 6,
+    CFG_BROKER = 1 << 7,
+    CFG_ROLE = 1 << 8,  // 역할 전환 — 재부팅으로만 적용
     CFG_ALL = 0xFFFF,
 };
 
@@ -147,6 +169,14 @@ public:
 
     static const char* portKindName(PortKind k);
     static PortKind parsePortKind(const String& s);
+    static const char* roleName(DeviceRole r);
+    static DeviceRole parseRole(const String& s);
+
+    DeviceRole role() const { return cfg_.device.role; }
+    bool isBroker() const { return cfg_.device.role == DeviceRole::Broker; }
+    // 활성 슬롯 수 / 첫 활성 슬롯 (-1 = 없음)
+    uint8_t enabledSlotCount() const;
+    int8_t firstEnabledSlot() const;
 
 private:
     bool parseInto(Config& out, JsonVariantConst src, String& error) const;

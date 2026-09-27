@@ -26,6 +26,9 @@ inline void sysInfoJson(JsonDocument& doc, NetManager& net, MqttManager& mqtt) {
     doc["wifi_state"] = net.stateName();
     doc["mqtt_state"] = mqtt.stateName();
     doc["mqtt_rc"] = mqtt.lastRc();
+    doc["mqtt_broker"] = mqtt.brokerAddress();
+    doc["mqtt_address_source"] = mqtt.addressSource();
+    doc["base_topic"] = mqtt.baseTopic();
     doc["mqtt_published"] = mqtt.publishCount();
     doc["mqtt_failed"] = mqtt.publishFailCount();
     doc["boot_reason"] = (int)esp_reset_reason();

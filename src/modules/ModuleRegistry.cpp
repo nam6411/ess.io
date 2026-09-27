@@ -9,11 +9,12 @@
 namespace essio {
 
 namespace {
+// 기본값 출처: docs/03(UP5000 Slave 10 / 115200), docs/04(JBD 9600), docs/05·06(RTU 9600), 설계서 §11.2
 const ModuleTypeInfo TYPES[] = {
-    {"upower", "UPower Inverter/Charger", 0},
-    {"jbdbms", "JBD Smart BMS", 0},
-    {"rtusw_mk1", "RTU Relay Board Mk1 (coils)", 8},
-    {"rtusw_mk2", "RTU Relay Board Mk2 (registers)", 4},
+    {"upower", "UP5000 (Modbus RTU)", 0, "upower", 10, 115200, 5000},
+    {"jbdbms", "JBD BMS", 0, "bms", 0, 9600, 5000},
+    {"rtusw_mk1", "RTU 스위치 Mk1 (Coil)", 8, "rtu", 255, 9600, 3000},
+    {"rtusw_mk2", "RTU 스위치 Mk2 (Register)", 4, "rtu", 1, 9600, 3000},
 };
 }
 
@@ -22,11 +23,15 @@ const ModuleTypeInfo* ModuleRegistry::types(size_t& count) {
     return TYPES;
 }
 
-bool ModuleRegistry::isKnown(const String& type) {
+const ModuleTypeInfo* ModuleRegistry::find(const String& type) {
     for (const auto& t : TYPES) {
-        if (type == t.type) return true;
+        if (type == t.type) return &t;
     }
-    return false;
+    return nullptr;
+}
+
+bool ModuleRegistry::isKnown(const String& type) {
+    return find(type) != nullptr;
 }
 
 IDeviceModule* ModuleRegistry::create(const String& type) {
@@ -85,6 +90,10 @@ void ModuleRegistry::schemaJson(JsonObject out) {
         o["type"] = t.type;
         o["label"] = t.label;
         o["max_channels"] = t.maxChannels;
+        o["slug"] = t.slug;
+        o["slave_id"] = t.slaveId;
+        o["baud"] = t.baud;
+        o["poll_interval_ms"] = t.pollMs;
         defaultParams(t.type, o["params_default"].to<JsonObject>());
     }
 }

@@ -8,6 +8,7 @@
 {
   "schema_version": 1,
   "device": {
+    "role": "node",
     "name": "ESS Gateway",
     "hostname": "",
     "log_level": "info"
@@ -15,12 +16,22 @@
   "wifi": {
     "ssid": "",
     "password": "",
+    "fallback_ssid": "RV-FALLBACK",
+    "fallback_password": "12341234",
     "static": { "enabled": false, "ip": "", "gateway": "", "subnet": "", "dns": "" },
     "ap": { "ssid": "", "password": "12341234", "fallback_after_s": 60, "keep_when_sta_ok": false }
+  },
+  "broker": {
+    "port": 1883,
+    "username": "",
+    "password": "",
+    "max_clients": 8,
+    "retain_slots": 48
   },
   "mqtt": {
     "enabled": true,
     "host": "",
+    "mdns_name": "broker",
     "port": 1883,
     "username": "",
     "password": "",
@@ -35,9 +46,9 @@
     "auth": { "enabled": false, "username": "admin", "password": "" }
   },
   "ports": [
-    { "id": 0, "name": "RS485-A", "kind": "hw1", "rx": 22, "tx": 23, "baud": 115200, "de_pin": -1, "timeout_ms": 500 },
-    { "id": 1, "name": "BMS",     "kind": "hw2", "rx": 16, "tx": 17, "baud": 9600,   "de_pin": -1, "timeout_ms": 1000 },
-    { "id": 2, "name": "RS485-B", "kind": "sw",  "rx": 18, "tx": 19, "baud": 9600,   "de_pin": -1, "timeout_ms": 500 }
+    { "id": 0, "name": "RS485",   "kind": "hw1",  "rx": 18, "tx": 17, "baud": 115200, "de_pin": -1, "timeout_ms": 500 },
+    { "id": 1, "name": "RS485-B", "kind": "none", "rx": 16, "tx": 15, "baud": 9600,   "de_pin": -1, "timeout_ms": 1000 },
+    { "id": 2, "name": "RS485-C", "kind": "none", "rx": -1, "tx": -1, "baud": 9600,   "de_pin": -1, "timeout_ms": 500 }
   ],
   "slots": [
     {
@@ -51,57 +62,24 @@
                           "storage_bcv_mv": 3400, "storage_fcv_mv": 3300, "storage_bvr_mv": 3200 }
       }
     },
-    {
-      "index": 1, "enabled": true, "type": "jbdbms", "slug": "bms", "label": "JBD BMS",
-      "port": 1, "slave_id": 0, "poll_interval_ms": 5000,
-      "params": {
-        "cell_count": 16,
-        "expose_cells": true,
-        "expose_protection_bits": true,
-        "charge_limit": { "enabled": false, "soc_high": 80, "soc_low": 70 }
-      }
-    },
-    {
-      "index": 2, "enabled": true, "type": "rtusw_mk1", "slug": "relay", "label": "Relay Board",
-      "port": 2, "slave_id": 255, "poll_interval_ms": 3000,
-      "params": {
-        "write_retries": 3,
-        "channels": [
-          { "ch": 1, "name": "Equalizer",      "enabled": true },
-          { "ch": 2, "name": "Plumbing Drain", "enabled": true },
-          { "ch": 3, "name": "Tank Drain",     "enabled": true },
-          { "ch": 4, "name": "Whale to Fill",  "enabled": true },
-          { "ch": 5, "name": "Aroundview",     "enabled": true },
-          { "ch": 6, "name": "Mover",          "enabled": true },
-          { "ch": 7, "name": "12v Charger",    "enabled": true },
-          { "ch": 8, "name": "Channel 8",      "enabled": false }
-        ]
-      }
-    },
+    { "index": 1, "enabled": false, "type": "none" },
+    { "index": 2, "enabled": false, "type": "none" },
     { "index": 3, "enabled": false, "type": "none" }
   ],
-  "io": {
-    "buttons": [
-      { "pin": 14, "active_low": true, "debounce_ms": 50,
-        "action": { "slot": 2, "switch": "ch6", "mode": "toggle" },
-        "long_press_ms": 0, "long_action": null },
-      { "pin": 12, "active_low": true, "debounce_ms": 50,
-        "action": { "slot": 0, "switch": "inverter", "mode": "toggle" },
-        "long_press_ms": 0, "long_action": null }
-    ],
-    "outputs": [
-      { "pin": 26, "active_high": true, "source": { "slot": 2, "switch": "ch6" } },
-      { "pin": 25, "active_high": true, "source": { "slot": 0, "switch": "inverter" } }
-    ]
-  }
+  "io": { "buttons": [], "outputs": [] }
 }
 ```
 
 ## 2. 필드 정의
 
+기본 구성은 **노드 역할 + 슬롯 0에 장치 하나**다(설계서 §2: 보드 1대 = 장치 1대).
+브로커로 쓰려면 `device.role`을 `broker`로 바꾼다 — 자세한 절차와 동작 차이는
+[15-roles.md](15-roles.md).
+
 ### `device`
 | 필드 | 타입 | 기본 | 검증 |
 |---|---|---|---|
+| role | enum node/broker | node | 변경 시 재부팅 필요 (→ [15-roles.md](15-roles.md) §2) |
 | name | string ≤32 | "ESS Gateway" | HA device name |
 | hostname | string ≤32 | "" → `essio-<device_id>` | `[a-z0-9-]` |
 | log_level | enum error/warn/info/debug | info | |
@@ -109,8 +87,10 @@
 ### `wifi`
 | 필드 | 타입 | 기본 | 비고 |
 |---|---|---|---|
-| ssid | ≤32 | "" | 빈 값 = AP 전용 |
+| ssid | ≤32 | "" | 1순위(라우터). 빈 값이면 fallback만 시도 |
 | password | ≤64 | "" | 조회 시 마스킹 |
+| fallback_ssid | ≤32 | `RV-FALLBACK` | 2순위 = 브로커 SoftAP. 브로커 역할에서는 자기 AP 이름으로도 쓰인다 |
+| fallback_password | ≤64 | `12341234` | 조회 시 마스킹 |
 | static.* | | disabled | IP 형식 검증 |
 | ap.ssid | ≤32 | "" → `essio-<device_id>` | |
 | ap.password | 8..63 | "12341234" | |
@@ -120,8 +100,9 @@
 ### `mqtt`
 | 필드 | 타입 | 기본 | 비고 |
 |---|---|---|---|
-| enabled | bool | true | |
-| host | ≤64 | "" | 빈 값 = DISABLED |
+| enabled | bool | true | Node 역할에서만 의미 있음 |
+| host | ≤64 | "" | 수동 주소(해석 순서의 마지막) |
+| mdns_name | ≤32 | `broker` | `<이름>.local` 탐색. 비우면 mDNS 생략 → 수동 주소만 사용 |
 | port | 1..65535 | 1883 | |
 | username/password | ≤64 | "" | 둘 다 빈 값이면 익명 |
 | client_id_suffix | ≤16 | "" | client_id = `essio-<device_id><suffix>` |
@@ -131,6 +112,15 @@
 | discovery.prefix | ≤32 | homeassistant | |
 | publish_min_interval_ms | 0..60000 | 1000 | 동일 슬롯 상태 재발행 최소 간격 |
 | legacy_topics | bool | false | #Q-5 |
+
+### `broker` (Broker 역할에서만 사용)
+| 필드 | 타입 | 기본 | 검증 |
+|---|---|---|---|
+| port | 1..65535 | 1883 | 수신 포트 |
+| username | ≤64 | "" | 설정하면 인증 강제 |
+| password | ≤64 | "" | username이 있으면 필수. 조회 시 마스킹 |
+| max_clients | 1..16 | 8 | 초과 접속은 `CRC_SERVER_UNAVAILABLE`로 거부. SoftAP 최대 접속 수에도 쓰인다 |
+| retain_slots | 0..256 | 48 | retained 토픽 보관 수 (→ [15-roles.md](15-roles.md) §3.1) |
 
 ### `web.auth`
 | 필드 | 기본 |
@@ -195,6 +185,8 @@
 ## 4. 적용 범위 (변경 → 동작)
 | 변경 키 | 동작 |
 |---|---|
+| device.role | **재부팅** — 브로커·스케줄러·UART 소유권이 통째로 바뀜 |
+| broker.* | 브로커 재기동 (Broker 역할에서만) |
 | device.hostname | 재부팅 필요 (`restart_required: true`) |
 | wifi.* | STA 재접속 |
 | mqtt.* | MQTT 재접속 + Discovery 재발행 |

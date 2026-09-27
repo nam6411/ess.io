@@ -9,12 +9,14 @@
 
 namespace essio {
 
-void WebApi::begin(ConfigStore& store, NetManager& net, MqttManager& mqtt, Scheduler& scheduler, HaDiscovery& discovery) {
+void WebApi::begin(ConfigStore& store, NetManager& net, MqttManager& mqtt, Scheduler& scheduler, HaDiscovery& discovery,
+                   BrokerService& broker) {
     store_ = &store;
     net_ = &net;
     mqtt_ = &mqtt;
     scheduler_ = &scheduler;
     discovery_ = &discovery;
+    broker_ = &broker;
     if (!mutex_) mutex_ = xSemaphoreCreateMutex();
     setupRoutes();
     server_.begin();
@@ -67,6 +69,14 @@ void WebApi::setupRoutes() {
     factoryReset->setMethod(HTTP_POST);
     server_.addHandler(factoryReset);
 
+    // 동작 모드: 브로커 호스트 / 장치 드라이버 (docs/15-roles.md)
+    server_.on("/api/system/modes", HTTP_GET, [this](AsyncWebServerRequest* req) { handleModes(req); });
+    auto* modeSet = new AsyncCallbackJsonWebHandler("/api/system/mode", [this](AsyncWebServerRequest* req, JsonVariant& json) {
+        handleModeSet(req, json);
+    });
+    modeSet->setMethod(HTTP_POST);
+    server_.addHandler(modeSet);
+
     server_.on("/api/config", HTTP_GET, [this](AsyncWebServerRequest* req) { handleConfigGet(req); });
     server_.on("/api/config/schema", HTTP_GET, [this](AsyncWebServerRequest* req) { handleSchema(req); });
     auto* configPut = new AsyncCallbackJsonWebHandler("/api/config", [this](AsyncWebServerRequest* req, JsonVariant& json) { handleConfigPut(req, json); });
@@ -92,10 +102,113 @@ void WebApi::setupRoutes() {
     });
 }
 
+String WebApi::currentMode() const {
+    const Config& cfg = store_->get();
+    if (cfg.device.role == DeviceRole::Broker) return "broker";
+    int8_t slot = store_->firstEnabledSlot();
+    return slot >= 0 ? cfg.slots[slot].type : String("idle");
+}
+
+void WebApi::handleModes(AsyncWebServerRequest* req) {
+    if (!authorized(req)) return;
+    JsonDocument doc;
+    doc["current"] = currentMode();
+    JsonArray modes = doc["modes"].to<JsonArray>();
+
+    JsonObject b = modes.add<JsonObject>();
+    b["id"] = "broker";
+    b["label"] = "MQTT 호스트 (브로커)";
+    b["role"] = "broker";
+    b["port"] = store_->get().broker.port;
+
+    size_t count = 0;
+    const ModuleTypeInfo* types = ModuleRegistry::types(count);
+    for (size_t i = 0; i < count; i++) {
+        JsonObject o = modes.add<JsonObject>();
+        o["id"] = types[i].type;
+        o["label"] = types[i].label;
+        o["role"] = "node";
+        o["slug"] = types[i].slug;
+        o["slave_id"] = types[i].slaveId;
+        o["baud"] = types[i].baud;
+    }
+
+    JsonObject idle = modes.add<JsonObject>();
+    idle["id"] = "idle";
+    idle["label"] = "유휴 (발행 안 함)";
+    idle["role"] = "node";
+
+    sendJson(req, doc);
+}
+
+// 모드 하나를 고르면 role·slot·port 설정을 한 번에 맞춘다.
+// 역할이 바뀌면 재부팅이 필요하고(CFG_ROLE), 드라이버만 바뀌면 해당 슬롯만 재초기화된다.
+void WebApi::handleModeSet(AsyncWebServerRequest* req, JsonVariant& json) {
+    if (!authorized(req)) return;
+    String mode = json["mode"] | "";
+    if (!mode.length()) return sendError(req, 400, "bad_request", "\"mode\" required");
+
+    const bool toBroker = mode == "broker";
+    const bool toIdle = mode == "idle";
+    const ModuleTypeInfo* info = toBroker || toIdle ? nullptr : ModuleRegistry::find(mode);
+    if (!toBroker && !toIdle && !info) return sendError(req, 400, "bad_request", "unknown mode: " + mode);
+
+    JsonDocument patch;
+    patch["device"]["role"] = toBroker ? "broker" : "node";
+    JsonArray slots = patch["slots"].to<JsonArray>();
+    for (uint8_t i = 0; i < MAX_SLOTS; i++) {
+        JsonObject s = slots.add<JsonObject>();
+        s["index"] = i;
+        if (i != 0 || toBroker || toIdle) {
+            s["enabled"] = false;
+            if (i == 0 && (toBroker || toIdle)) s["type"] = "none";
+            continue;
+        }
+        s["enabled"] = true;
+        s["type"] = info->type;
+        s["slug"] = info->slug;
+        s["label"] = info->label;
+        s["port"] = 0;
+        s["slave_id"] = info->slaveId;
+        s["poll_interval_ms"] = info->pollMs;
+    }
+    if (info) {
+        // 드라이버의 기본 보레이트를 포트 0에 반영 (docs/12 §2 ports[])
+        JsonObject p = patch["ports"].to<JsonArray>().add<JsonObject>();
+        p["id"] = 0;
+        p["kind"] = "hw1";
+        p["baud"] = info->baud;
+    }
+    // base_topic을 비워 역할·드라이버에 맞는 기본값(rv/<slug>, rv/broker)이 다시 계산되게 한다
+    patch["mqtt"]["base_topic"] = "";
+
+    String error;
+    if (!store_->validate(patch.as<JsonVariantConst>(), error)) return sendError(req, 400, "validation", error);
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(100)) != pdTRUE) return sendError(req, 503, "busy", "try again");
+    if (pending_ != PendingAction::None) {
+        xSemaphoreGive(mutex_);
+        return sendError(req, 409, "pending", "another action is pending");
+    }
+    pendingConfig_.set(patch);
+    pending_ = PendingAction::ApplyConfig;
+    pendingAtMs_ = millis();
+    xSemaphoreGive(mutex_);
+
+    const bool roleChanges = toBroker != store_->isBroker();
+    JsonDocument doc;
+    doc["ok"] = true;
+    doc["mode"] = mode;
+    doc["restart_required"] = roleChanges;
+    sendJson(req, doc, 202);
+}
+
 void WebApi::handleSystemInfo(AsyncWebServerRequest* req) {
     if (!authorized(req)) return;
     JsonDocument doc;
     sysInfoJson(doc, *net_, *mqtt_);
+    doc["role"] = ConfigStore::roleName(store_->role());
+    doc["mode"] = currentMode();
+    if (store_->isBroker()) broker_->statusJson(doc["broker"].to<JsonObject>());
     JsonArray slots = doc["slots"].to<JsonArray>();
     for (uint8_t i = 0; i < scheduler_->slotCount(); i++) {
         const Slot* s = scheduler_->slot(i);

@@ -12,7 +12,9 @@
 ## 2. 시스템
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
-| GET | `/api/system/info` | | `{device_id, fw, build, uptime_s, heap_free, heap_min, ip, ap_ip, rssi, wifi_state, mqtt_state, mqtt_connected_since, boot_reason, slots:[{index,type,slug,enabled,online,last_ok_ms_ago,errors}]}` |
+| GET | `/api/system/info` | | `{device_id, fw, build, uptime_s, heap_free, heap_min, ip, ap_ip, rssi, wifi_state, role, mode, base_topic, mqtt_state, mqtt_broker, mqtt_address_source, mqtt_rc, boot_reason, broker:{…broker 역할일 때}, slots:[{index,type,slug,enabled,online,errors}]}` |
+| GET | `/api/system/modes` | | `{current, modes:[{id,label,role,slug,slave_id,baud}]}` — 동작 모드 목록 (→ [15-roles.md](15-roles.md) §1) |
+| POST | `/api/system/mode` | `{"mode":"broker"\|"upower"\|"jbdbms"\|"rtusw_mk1"\|"rtusw_mk2"\|"idle"}` | `202 {"ok":true,"mode":…,"restart_required":bool}`. role·slots·ports·base_topic을 한 번에 맞춘다. 역할이 바뀌면 적용 후 자동 재부팅 |
 | POST | `/api/system/restart` | | `202 {"ok":true}` 후 500ms 뒤 재부팅 |
 | POST | `/api/system/factory_reset` | `{"confirm":"RESET"}` | 설정 삭제 → 재부팅 |
 | POST | `/api/system/rediscover` | | Discovery 전체 재발행 |
@@ -48,6 +50,11 @@
 | POST | `/api/ports/{id}/modbus` | `{"slave":10,"fc":4,"addr":13568,"count":19}` | `{"ok":true,"regs":[...]}` 또는 `{"ok":false,"code":226}` — 설정 전 장치 응답 확인용. 포트 lock 획득 실패 시 409 |
 
 ## 6. UI 화면 구성 (단일 페이지, 탭)
+
+### 6.0 동작 모드 (구현됨)
+페이지 최상단에 "동작 모드" 드롭다운 + 적용 버튼. `GET /api/system/modes`로 목록을 그리고
+`POST /api/system/mode`로 전환한다. 브로커 모드에서는 슬롯 카드 대신 브로커 카드(수신 포트,
+접속 클라이언트 수, 보관 중 retained, 메시지·재생·거부·누락 카운터)를 보여준다.
 
 ### 6.1 Dashboard
 - 상단 바: 장치 이름, IP, WiFi RSSI, MQTT 상태(색), 업타임.

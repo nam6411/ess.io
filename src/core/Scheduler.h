@@ -41,7 +41,8 @@ public:
     static constexpr uint16_t OFFLINE_AFTER_ERRORS = 3;
     static constexpr uint32_t PORT_LOCK_WAIT_MS = 50;
 
-    void begin(ConfigStore& store, SerialPort* ports, MqttManager& mqtt);
+    // activate=false면 포트·슬롯을 만들지 않는다 (Broker 역할: UART을 점유하지 않고 조회만 가능)
+    void begin(ConfigStore& store, SerialPort* ports, MqttManager& mqtt, bool activate = true);
     void applyPorts();           // ports 변경 시 (슬롯도 전부 재생성)
     void applySlots();           // slots 변경 시
     void tick();
@@ -55,6 +56,11 @@ public:
     Slot* slot(uint8_t i) { return i < MAX_SLOTS ? &slots_[i] : nullptr; }
     uint8_t slotCount() const { return MAX_SLOTS; }
     SerialPort* port(uint8_t i) { return i < MAX_PORTS ? &ports_[i] : nullptr; }
+
+    // 슬롯의 토픽 접두. 보드에 슬롯이 하나뿐이면 slug 구간을 생략해
+    // 설계서 §3.4의 rv/<node>/... 형태가 되도록 한다 (rv/upower/upower/... 회피).
+    String slotPrefix(const Slot& s) const;
+    uint8_t enabledCount() const;
 
     void publishSlot(Slot& s);   // state + switch state 발행
     void publishAll();

@@ -84,6 +84,29 @@ PortKind ConfigStore::parsePortKind(const String& s) {
     return PortKind::None;
 }
 
+const char* ConfigStore::roleName(DeviceRole r) {
+    return r == DeviceRole::Broker ? "broker" : "node";
+}
+
+DeviceRole ConfigStore::parseRole(const String& s) {
+    return s == "broker" ? DeviceRole::Broker : DeviceRole::Node;
+}
+
+uint8_t ConfigStore::enabledSlotCount() const {
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < MAX_SLOTS; i++) {
+        if (cfg_.slots[i].enabled && cfg_.slots[i].type != "none") n++;
+    }
+    return n;
+}
+
+int8_t ConfigStore::firstEnabledSlot() const {
+    for (uint8_t i = 0; i < MAX_SLOTS; i++) {
+        if (cfg_.slots[i].enabled && cfg_.slots[i].type != "none") return i;
+    }
+    return -1;
+}
+
 bool ConfigStore::begin() {
     if (!LittleFS.begin(false)) {
         LOG_W("LittleFS mount failed, formatting");
@@ -100,14 +123,18 @@ bool ConfigStore::begin() {
     return true;
 }
 
-// 기본값 = 기존 ess.io 구성 (docs/12-config-schema.md §1)
+// 기본값: 노드 역할 + 슬롯 0에 UP5000 하나 (docs/12-config-schema.md §1, docs/15-roles.md)
+// 설계서는 보드 1대 = 장치 1대이므로 슬롯 1~3은 비활성으로 둔다.
 void ConfigStore::setDefaults() {
     cfg_ = Config();
+    cfg_.wifi.fallbackSsid = "RV-FALLBACK";
+    cfg_.wifi.fallbackPassword = "12341234";
 
+    // 포트 0만 기본 활성. RX18/TX17은 ESP32/ESP32-S3 양쪽에서 유효한 조합.
     const struct { const char* name; PortKind kind; int8_t rx, tx; uint32_t baud; uint16_t timeout; } ports[MAX_PORTS] = {
-        {"RS485-A", PortKind::Hw1, 22, 23, 115200, 500},
-        {"BMS", PortKind::Hw2, 16, 17, 9600, 1000},
-        {"RS485-B", PortKind::Sw, 18, 19, 9600, 500},
+        {"RS485", PortKind::Hw1, 18, 17, 115200, 500},
+        {"RS485-B", PortKind::None, 16, 15, 9600, 1000},
+        {"RS485-C", PortKind::None, -1, -1, 9600, 500},
     };
     for (uint8_t i = 0; i < MAX_PORTS; i++) {
         PortConfig& p = cfg_.ports[i];
@@ -124,41 +151,19 @@ void ConfigStore::setDefaults() {
         cfg_.slots[i] = SlotConfig();
         cfg_.slots[i].index = i;
     }
-    {
-        SlotConfig& s = cfg_.slots[0];
-        s.enabled = true; s.type = "upower"; s.slug = "upower"; s.label = "UPower";
-        s.port = 0; s.slaveId = 10; s.pollIntervalMs = 5000;
-        ModuleRegistry::defaultParams(s.type, s.params.to<JsonObject>());
-    }
-    {
-        SlotConfig& s = cfg_.slots[1];
-        s.enabled = true; s.type = "jbdbms"; s.slug = "bms"; s.label = "JBD BMS";
-        s.port = 1; s.slaveId = 0; s.pollIntervalMs = 5000;
-        ModuleRegistry::defaultParams(s.type, s.params.to<JsonObject>());
-    }
-    {
-        SlotConfig& s = cfg_.slots[2];
-        s.enabled = true; s.type = "rtusw_mk1"; s.slug = "relay"; s.label = "Relay Board";
-        s.port = 2; s.slaveId = 255; s.pollIntervalMs = 3000;
-        JsonObject params = s.params.to<JsonObject>();
-        ModuleRegistry::defaultParams(s.type, params);
-        const char* names[] = {"Equalizer", "Plumbing Drain", "Tank Drain", "Whale to Fill",
-                               "Aroundview", "Mover", "12v Charger", "Channel 8"};
-        JsonArray channels = params["channels"].to<JsonArray>();
-        for (uint8_t ch = 1; ch <= 8; ch++) {
-            JsonObject c = channels.add<JsonObject>();
-            c["ch"] = ch;
-            c["name"] = names[ch - 1];
-            c["enabled"] = ch != 8;
-        }
-    }
+    SlotConfig& s = cfg_.slots[0];
+    s.enabled = true;
+    s.type = "upower";
+    s.slug = "upower";
+    s.label = "UPower";
+    s.port = 0;
+    s.slaveId = 10;
+    s.pollIntervalMs = 5000;
+    ModuleRegistry::defaultParams(s.type, s.params.to<JsonObject>());
 
-    cfg_.buttonCount = 2;
-    cfg_.buttons[0].pin = 14; cfg_.buttons[0].action = {2, "ch6"};
-    cfg_.buttons[1].pin = 12; cfg_.buttons[1].action = {0, "inverter"};
-    cfg_.outputCount = 2;
-    cfg_.outputs[0].pin = 26; cfg_.outputs[0].source = {2, "ch6"};
-    cfg_.outputs[1].pin = 25; cfg_.outputs[1].source = {0, "inverter"};
+    // 물리 버튼·LED는 디스플레이 모듈이 담당한다(설계서 §10). 노드에는 기본 배정 없음.
+    cfg_.buttonCount = 0;
+    cfg_.outputCount = 0;
 
     loadedFromFile_ = false;
 }
@@ -229,6 +234,7 @@ void ConfigStore::toJson(JsonDocument& doc, bool maskSecrets) const {
     doc["schema_version"] = SCHEMA_VERSION;
 
     JsonObject device = doc["device"].to<JsonObject>();
+    device["role"] = roleName(cfg_.device.role);
     device["name"] = cfg_.device.name;
     device["hostname"] = cfg_.device.hostname;
     device["log_level"] = cfg_.device.logLevel;
@@ -236,6 +242,8 @@ void ConfigStore::toJson(JsonDocument& doc, bool maskSecrets) const {
     JsonObject wifi = doc["wifi"].to<JsonObject>();
     wifi["ssid"] = cfg_.wifi.ssid;
     wifi["password"] = secret(cfg_.wifi.password);
+    wifi["fallback_ssid"] = cfg_.wifi.fallbackSsid;
+    wifi["fallback_password"] = secret(cfg_.wifi.fallbackPassword);
     JsonObject st = wifi["static"].to<JsonObject>();
     st["enabled"] = cfg_.wifi.staticIp.enabled;
     st["ip"] = cfg_.wifi.staticIp.ip;
@@ -251,6 +259,7 @@ void ConfigStore::toJson(JsonDocument& doc, bool maskSecrets) const {
     JsonObject mqtt = doc["mqtt"].to<JsonObject>();
     mqtt["enabled"] = cfg_.mqtt.enabled;
     mqtt["host"] = cfg_.mqtt.host;
+    mqtt["mdns_name"] = cfg_.mqtt.mdnsName;
     mqtt["port"] = cfg_.mqtt.port;
     mqtt["username"] = cfg_.mqtt.username;
     mqtt["password"] = secret(cfg_.mqtt.password);
@@ -262,6 +271,13 @@ void ConfigStore::toJson(JsonDocument& doc, bool maskSecrets) const {
     disc["prefix"] = cfg_.mqtt.discoveryPrefix;
     mqtt["publish_min_interval_ms"] = cfg_.mqtt.publishMinIntervalMs;
     mqtt["legacy_topics"] = cfg_.mqtt.legacyTopics;
+
+    JsonObject broker = doc["broker"].to<JsonObject>();
+    broker["port"] = cfg_.broker.port;
+    broker["username"] = cfg_.broker.username;
+    broker["password"] = secret(cfg_.broker.password);
+    broker["max_clients"] = cfg_.broker.maxClients;
+    broker["retain_slots"] = cfg_.broker.retainSlots;
 
     JsonObject auth = doc["web"]["auth"].to<JsonObject>();
     auth["enabled"] = cfg_.webAuth.enabled;
@@ -326,6 +342,11 @@ bool ConfigStore::parseInto(Config& c, JsonVariantConst src, String& error) cons
 
     JsonVariantConst device = src["device"];
     if (!device.isNull()) {
+        if (!device["role"].isNull()) {
+            String role = getStr(device["role"], "node");
+            if (role != "node" && role != "broker") { error = "device.role must be node|broker"; return false; }
+            c.device.role = parseRole(role);
+        }
         c.device.name = getStr(device["name"], c.device.name);
         c.device.hostname = getStr(device["hostname"], c.device.hostname);
         c.device.logLevel = getStr(device["log_level"], c.device.logLevel);
@@ -336,6 +357,9 @@ bool ConfigStore::parseInto(Config& c, JsonVariantConst src, String& error) cons
     if (!wifi.isNull()) {
         c.wifi.ssid = getStr(wifi["ssid"], c.wifi.ssid);
         applySecret(wifi["password"], c.wifi.password);
+        c.wifi.fallbackSsid = getStr(wifi["fallback_ssid"], c.wifi.fallbackSsid);
+        applySecret(wifi["fallback_password"], c.wifi.fallbackPassword);
+        if (c.wifi.fallbackSsid.length() > 32) { error = "wifi.fallback_ssid too long"; return false; }
         JsonVariantConst st = wifi["static"];
         if (!st.isNull()) {
             c.wifi.staticIp.enabled = getBool(st["enabled"], c.wifi.staticIp.enabled);
@@ -363,6 +387,7 @@ bool ConfigStore::parseInto(Config& c, JsonVariantConst src, String& error) cons
     if (!mqtt.isNull()) {
         c.mqtt.enabled = getBool(mqtt["enabled"], c.mqtt.enabled);
         c.mqtt.host = getStr(mqtt["host"], c.mqtt.host);
+        c.mqtt.mdnsName = getStr(mqtt["mdns_name"], c.mqtt.mdnsName);
         c.mqtt.port = getNum<uint16_t>(mqtt["port"], c.mqtt.port);
         c.mqtt.username = getStr(mqtt["username"], c.mqtt.username);
         applySecret(mqtt["password"], c.mqtt.password);
@@ -385,6 +410,23 @@ bool ConfigStore::parseInto(Config& c, JsonVariantConst src, String& error) cons
             error = "mqtt.base_topic invalid"; return false;
         }
         if (c.mqtt.discoveryPrefix.length() == 0 || c.mqtt.discoveryPrefix.length() > 32) { error = "mqtt.discovery.prefix invalid"; return false; }
+        if (c.mqtt.mdnsName.length() > 32) { error = "mqtt.mdns_name too long"; return false; }
+    }
+
+    JsonVariantConst broker = src["broker"];
+    if (!broker.isNull()) {
+        c.broker.port = getNum<uint16_t>(broker["port"], c.broker.port);
+        c.broker.username = getStr(broker["username"], c.broker.username);
+        applySecret(broker["password"], c.broker.password);
+        c.broker.maxClients = getNum<uint8_t>(broker["max_clients"], c.broker.maxClients);
+        c.broker.retainSlots = getNum<uint16_t>(broker["retain_slots"], c.broker.retainSlots);
+        if (c.broker.port == 0) { error = "broker.port out of range"; return false; }
+        if (c.broker.maxClients < 1 || c.broker.maxClients > 16) { error = "broker.max_clients must be 1..16"; return false; }
+        if (c.broker.retainSlots > 256) { error = "broker.retain_slots must be <= 256"; return false; }
+        if (c.broker.username.length() > 0 && c.broker.password.length() == 0) {
+            error = "broker.password required when username is set";
+            return false;
+        }
     }
 
     JsonVariantConst auth = src["web"]["auth"];
@@ -530,13 +572,15 @@ bool ConfigStore::fromJson(JsonVariantConst src, String& error, uint16_t& change
 
     JsonDocument before, after;
     toJson(before, false);
+    DeviceRole prevRole = cfg_.device.role;
     cfg_ = next;
     toJson(after, false);
 
     changed = 0;
+    if (prevRole != cfg_.device.role) changed |= CFG_ROLE;
     const struct { const char* key; uint16_t bit; } sections[] = {
         {"device", CFG_DEVICE}, {"wifi", CFG_WIFI}, {"mqtt", CFG_MQTT}, {"web", CFG_WEB},
-        {"ports", CFG_PORTS}, {"slots", CFG_SLOTS}, {"io", CFG_IO},
+        {"ports", CFG_PORTS}, {"slots", CFG_SLOTS}, {"io", CFG_IO}, {"broker", CFG_BROKER},
     };
     for (const auto& s : sections) {
         String a, b;
