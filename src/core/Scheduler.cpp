@@ -218,10 +218,48 @@ void Scheduler::publishSlot(Slot& s) {
     for (size_t i = 0; i < s.module->switchCount(); i++) publishSwitch(s, i);
 }
 
+// 디스플레이용 장치 설명: 타입·이름·스위치·대표 센서 (docs/15-roles.md §3.3)
+// 디스플레이는 이것만 보고 화면을 구성하므로 새 드라이버를 추가해도 디스플레이 코드는 그대로다.
+void Scheduler::publishMeta(Slot& s) {
+    if (!mqtt_->connected()) return;
+    JsonDocument doc;
+    doc["type"] = s.type;
+    doc["label"] = s.label.length() ? s.label : s.slug;
+    JsonArray sw = doc["switches"].to<JsonArray>();
+    for (size_t i = 0; i < s.module->switchCount(); i++) {
+        const SwitchDef* d = s.module->switchDef(i);
+        JsonObject o = sw.add<JsonObject>();
+        o["n"] = d->name;
+        o["l"] = d->label;
+    }
+    JsonArray metrics = doc["metrics"].to<JsonArray>();
+    String keys = s.module->keySensors();
+    int from = 0;
+    while (from < (int)keys.length()) {
+        int comma = keys.indexOf(',', from);
+        if (comma < 0) comma = keys.length();
+        String key = keys.substring(from, comma);
+        from = comma + 1;
+        for (size_t i = 0; i < s.module->sensorCount(); i++) {
+            const SensorDef* d = s.module->sensorDef(i);
+            if (key != d->key) continue;
+            JsonObject o = metrics.add<JsonObject>();
+            o["l"] = d->label;
+            o["u"] = d->unit;
+            o["p"] = d->jsonPath;
+            break;
+        }
+    }
+    String payload;
+    serializeJson(doc, payload);
+    mqtt_->publish(slotPrefix(s) + "/meta", payload, true);
+}
+
 void Scheduler::publishAll() {
     for (uint8_t i = 0; i < MAX_SLOTS; i++) {
         Slot& s = slots_[i];
         if (s.enabled && s.module) {
+            publishMeta(s);
             publishAvailability(s, s.online);
             if (s.online) publishSlot(s);
         }

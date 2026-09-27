@@ -1,6 +1,6 @@
 # 15. 동작 모드 (역할 선택)
 
-하나의 펌웨어가 **브로커 호스트** 또는 **장치 클라이언트** 중 하나로 동작한다.
+하나의 펌웨어가 **브로커 호스트**, **장치 클라이언트**, **디스플레이** 중 하나로 동작한다.
 어느 쪽인지는 컴파일 타임이 아니라 웹 UI에서 고른다 — 설계서 §2의 "예비 보드 한 장이 어느
 노드든 대체한다"를 브로커 노드까지 확장한 것이다.
 
@@ -20,6 +20,8 @@
 | `jbdbms` | JBD BMS | node | 슬롯 0 = JBD, 포트 0 = 9600 |
 | `rtusw_mk1` | RTU 스위치 Mk1 (Coil) | node | 슬롯 0 = Mk1, 포트 0 = 9600, Slave 255 |
 | `rtusw_mk2` | RTU 스위치 Mk2 (Register) | node | 슬롯 0 = Mk2, 포트 0 = 9600, Slave 1 |
+| `mach` | MACH BMS (미구현·스니핑) | node | 슬롯 0 = MACH 더미, 포트 0 = 9600. 아무것도 보내지 않고 수신 바이트만 기록 (§3.4) |
+| `display` | 디스플레이 (터치 화면) | display | 패널 기동, 모든 노드 구독. 슬롯·포트 없음 (§3.3). `supported:false`면 이 빌드에 패널 드라이버가 없음 |
 | `idle` | 유휴 (발행 안 함) | node | 슬롯 전부 비활성. 설정만 가능한 상태 |
 
 기본값은 드라이버별로 `ModuleRegistry`의 `ModuleTypeInfo`에 들어 있다(`slug`, `slave_id`, `baud`,
@@ -83,6 +85,37 @@ PicoMQTT는 retain 플래그를 전달하기만 하고 **보관하지 않는다.
 | mDNS 호스트명 | `rv-node-<device_id>` (설정으로 변경) |
 | 물리 버튼·LED | 기본 없음. 조작은 디스플레이 모듈 담당(설계서 §10) |
 
+### 3.3 Display (`device.role = "display"`)
+
+| 항목 | 내용 |
+|---|---|
+| 하드웨어 | Elecrow CrowPanel 2.1" HMI Rotary Display (ESP32-S3 N16R8, 480×480 원형 ST7701 RGB, CST8xx 터치, 노브). `display.panel = "crowpanel_2_1"` |
+| 빌드 | `esp32s3` env만 `-DESSIO_DISPLAY=1`로 LVGL 9.1 + Arduino_GFX 1.6.7을 넣는다. `esp32dev` 빌드에서는 모드 목록에 `supported:false`로 나오고 고를 수 없다 |
+| Wi-Fi·MQTT | Node와 같다(라우터 → 브로커 AP → 설정용 AP). MQTT 클라이언트로 브로커에 접속, base topic `rv/display-<id>` |
+| 구독 | `<root>/+/{meta,state,availability}`, `<root>/+/switch/+/state` 와 슬롯 2개 이상 노드용 `<root>/+/+/…`. `<root>` = `display.topic_root`(기본 `rv`) |
+| 조작 | 노브 돌림 = 페이지 이동(홈 ↔ 장치별), 노브 누름 = 홈. 스와이프도 된다. 스위치 버튼 터치 → `<prefix>/switch/<name>/set` 에 `ON`/`OFF` 발행. 버튼 색은 노드가 다시 보내는 상태 토픽으로만 바뀐다 |
+| 화면 끄기 | `display.dim_after_s`(기본 60초) 동안 입력이 없으면 `dim_brightness`로 어둡게. 어두운 상태의 첫 터치·노브는 깨우기만 하고 버튼을 누르지 않는다 |
+| 장치 폴링 | 없음. 이 보드는 GPIO 대부분을 패널이 쓰므로 슬롯·포트를 만들지 않는다 |
+| 화면 개발 | `PLATFORMIO_BUILD_FLAGS=-DESSIO_DISPLAY_DEMO`로 빌드하면 가짜 장치 3개(UPower·JBD·릴레이)가 들어간다 |
+
+#### `<prefix>/meta` (노드 → 디스플레이, retain)
+노드는 접속·Rediscover 때 슬롯마다 장치 설명을 발행한다. 디스플레이는 이것만 보고 화면을 만들므로
+드라이버를 새로 추가해도 디스플레이 코드는 고칠 필요가 없다.
+
+```json
+{"type":"jbdbms","label":"JBD BMS",
+ "switches":[{"n":"charge_fet","l":"Charge MOSFET"}, …],
+ "metrics":[{"l":"SOC","u":"%","p":"soc"},{"l":"Power","u":"W","p":"power"}, …]}
+```
+- `metrics`는 드라이버의 `keySensors()`(쉼표 구분 센서 키) 순서. 첫 번째가 대표값이고, 단위가 `%`면 화면 테두리 링으로도 보인다.
+- `p`는 state JSON 안의 점 경로. meta가 없는 노드(구버전)는 state 최상위 숫자 값과 스위치 상태 토픽으로 대신 그린다.
+- 브로커는 `+/+/meta`, `+/+/+/meta`를 retained로 보관한다.
+
+### 3.4 MACH (더미)
+프로토콜이 확인되지 않아 **수동 스니퍼**로만 동작한다. 요청을 보내지 않고 수신 바이트를 20ms 공백 기준으로
+프레임으로 끊어 `state.last_hex`·`frames`·`rx_bytes`에 담고 debug 로그로 남긴다. 5초 동안 아무것도 안 오면
+오류(오프라인 판정용). 실제 장치와 기존 컨트롤러 사이 선로에 RX만 물려 두고 보레이트를 맞춰 가며 패킷을 모은다.
+
 ## 4. 토픽 접두 기본값
 
 설계서 §3.4의 `rv/<node>/...`에 맞춘다.
@@ -107,14 +140,16 @@ state·switch·availability·status는 모두 `retain=true`로 발행한다.
 
 ```
 1. mDNS       mqtt.mdns_name (기본 "broker") → broker.local 조회, 2초 타임아웃
-2. 마지막 성공 NVS("essio"/"broker_ip")에 저장된 주소
-3. 수동 입력   mqtt.host
+2. 게이트웨이 브로커 AP(wifi.fallback_ssid)에 붙어 있으면 그 게이트웨이 = 브로커
+3. 마지막 성공 NVS("essio"/"broker_ip")에 저장된 주소
+4. 수동 입력   mqtt.host
 ```
 
 - 접속에 성공하면 그 주소를 NVS에 기록한다.
 - `mqtt.mdns_name`을 **비우면** mDNS를 건너뛰므로 수동 주소만 쓰게 된다. 라우터가 mDNS를 막을 때의 탈출구.
 - 현재 어떤 경로로 붙었는지는 `GET /api/system/info`의 `mqtt_address_source`
-  (`mdns` / `last_good` / `manual` / `none`)로 확인한다.
+  (`mdns` / `gateway` / `last_good` / `manual` / `none`)로 확인한다.
+- 브로커는 자기 AP를 띄울 때도 mDNS를 켠다(예전에는 라우터 접속 때만 켜서 AP 위에서는 `broker.local`이 안 찾혔다).
 
 ## 6. Wi-Fi 모드 (설계서 §3.1, §3.2)
 
@@ -155,4 +190,5 @@ APSTA 상시 동작을 피한다(AP·STA가 무선 칩과 채널을 공유해 �
 - 메트릭당 개별 state 토픽 전환 (설계서 §3.4)
 - 드라이버 전환 시 이전 Discovery 토픽 삭제 (`HaDiscovery::removeSlot`)
 - 폴링 3등급 + 변화 시 발행 + 30초 하트비트 (설계서 §11.3)
-- MACH / ANT BMS 드라이버 (MACH는 최후순위)
+- MACH 실제 프로토콜 (지금은 스니핑 더미, §3.4) / ANT BMS 드라이버
+- 디스플레이: 다른 패널 보드 추가(`DISPLAY_PANELS`), 장치 상세 화면(셀 전압 등)

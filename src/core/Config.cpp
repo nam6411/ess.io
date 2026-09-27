@@ -85,11 +85,17 @@ PortKind ConfigStore::parsePortKind(const String& s) {
 }
 
 const char* ConfigStore::roleName(DeviceRole r) {
-    return r == DeviceRole::Broker ? "broker" : "node";
+    switch (r) {
+        case DeviceRole::Broker: return "broker";
+        case DeviceRole::Display: return "display";
+        default: return "node";
+    }
 }
 
 DeviceRole ConfigStore::parseRole(const String& s) {
-    return s == "broker" ? DeviceRole::Broker : DeviceRole::Node;
+    if (s == "broker") return DeviceRole::Broker;
+    if (s == "display") return DeviceRole::Display;
+    return DeviceRole::Node;
 }
 
 uint8_t ConfigStore::enabledSlotCount() const {
@@ -280,6 +286,13 @@ void ConfigStore::toJson(JsonDocument& doc, bool maskSecrets) const {
     broker["max_clients"] = cfg_.broker.maxClients;
     broker["retain_slots"] = cfg_.broker.retainSlots;
 
+    JsonObject disp = doc["display"].to<JsonObject>();
+    disp["panel"] = cfg_.display.panel;
+    disp["brightness"] = cfg_.display.brightness;
+    disp["dim_after_s"] = cfg_.display.dimAfterS;
+    disp["dim_brightness"] = cfg_.display.dimBrightness;
+    disp["topic_root"] = cfg_.display.topicRoot;
+
     JsonObject auth = doc["web"]["auth"].to<JsonObject>();
     auth["enabled"] = cfg_.webAuth.enabled;
     auth["username"] = cfg_.webAuth.username;
@@ -345,7 +358,10 @@ bool ConfigStore::parseInto(Config& c, JsonVariantConst src, String& error) cons
     if (!device.isNull()) {
         if (!device["role"].isNull()) {
             String role = getStr(device["role"], "node");
-            if (role != "node" && role != "broker") { error = "device.role must be node|broker"; return false; }
+            if (role != "node" && role != "broker" && role != "display") {
+                error = "device.role must be node|broker|display";
+                return false;
+            }
             c.device.role = parseRole(role);
         }
         c.device.name = getStr(device["name"], c.device.name);
@@ -427,6 +443,25 @@ bool ConfigStore::parseInto(Config& c, JsonVariantConst src, String& error) cons
         if (c.broker.username.length() > 0 && c.broker.password.length() == 0) {
             error = "broker.password required when username is set";
             return false;
+        }
+    }
+
+    JsonVariantConst disp = src["display"];
+    if (!disp.isNull()) {
+        c.display.panel = getStr(disp["panel"], c.display.panel);
+        c.display.brightness = getNum<uint8_t>(disp["brightness"], c.display.brightness);
+        c.display.dimAfterS = getNum<uint16_t>(disp["dim_after_s"], c.display.dimAfterS);
+        c.display.dimBrightness = getNum<uint8_t>(disp["dim_brightness"], c.display.dimBrightness);
+        c.display.topicRoot = getStr(disp["topic_root"], c.display.topicRoot);
+        bool known = false;
+        for (const char* p : DISPLAY_PANELS) known |= c.display.panel == p;
+        if (!known) { error = "display.panel unknown"; return false; }
+        if (c.display.brightness < 5 || c.display.brightness > 100) { error = "display.brightness must be 5..100"; return false; }
+        if (c.display.dimBrightness > 100) { error = "display.dim_brightness must be 0..100"; return false; }
+        if (c.display.dimAfterS > 3600) { error = "display.dim_after_s must be 0..3600"; return false; }
+        const String& tr = c.display.topicRoot;
+        if (!tr.length() || tr.length() > 32 || tr.indexOf('#') >= 0 || tr.indexOf('+') >= 0 || tr.indexOf('/') >= 0) {
+            error = "display.topic_root invalid"; return false;
         }
     }
 
@@ -582,6 +617,7 @@ bool ConfigStore::fromJson(JsonVariantConst src, String& error, uint16_t& change
     const struct { const char* key; uint16_t bit; } sections[] = {
         {"device", CFG_DEVICE}, {"wifi", CFG_WIFI}, {"mqtt", CFG_MQTT}, {"web", CFG_WEB},
         {"ports", CFG_PORTS}, {"slots", CFG_SLOTS}, {"io", CFG_IO}, {"broker", CFG_BROKER},
+        {"display", CFG_DISPLAY},
     };
     for (const auto& s : sections) {
         String a, b;

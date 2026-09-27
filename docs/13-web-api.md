@@ -12,9 +12,9 @@
 ## 2. 시스템
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
-| GET | `/api/system/info` | | `{device_id, fw, build, uptime_s, heap_free, heap_min, ip, ap_ip, rssi, wifi_state, role, mode, base_topic, mqtt_state, mqtt_broker, mqtt_address_source, mqtt_rc, boot_reason, broker:{…broker 역할일 때}, slots:[{index,type,slug,enabled,online,errors}]}` |
-| GET | `/api/system/modes` | | `{current, modes:[{id,label,role,slug,slave_id,baud}]}` — 동작 모드 목록 (→ [15-roles.md](15-roles.md) §1) |
-| POST | `/api/system/mode` | `{"mode":"broker"\|"upower"\|"jbdbms"\|"rtusw_mk1"\|"rtusw_mk2"\|"idle"}` | `202 {"ok":true,"mode":…,"restart_required":bool}`. role·slots·ports·base_topic을 한 번에 맞춘다. 역할이 바뀌면 적용 후 자동 재부팅 |
+| GET | `/api/system/info` | | `{device_id, fw, build, uptime_s, configured, heap_free, heap_min, ip, ap_ip, rssi, wifi_state, role, mode, base_topic, mqtt_state, mqtt_broker, mqtt_address_source, mqtt_rc, boot_reason, broker:{…broker 역할일 때}, slots:[{index,type,slug,enabled,online,errors}]}` |
+| GET | `/api/system/modes` | | `{current, modes:[{id,label,role,slug,slave_id,baud}]}` — 동작 모드 목록 (→ [15-roles.md](15-roles.md) §1). `display` 항목은 `supported`(이 빌드에 패널 드라이버가 있나)·`panels` 포함 |
+| POST | `/api/system/mode` | `{"mode":"broker"\|"display"\|"upower"\|"jbdbms"\|"rtusw_mk1"\|"rtusw_mk2"\|"mach"\|"idle", "config"?:{부분 설정}, "restart"?:bool}` | `202 {"ok":true,"mode":…,"restart_required":bool}`. role·slots·ports·base_topic을 한 번에 맞춘다. `config`(wifi·display 등)는 같은 검증을 거쳐 함께 적용, `restart:true`면 적용 후 재부팅(최초 설정 마법사). 역할이 바뀌면 적용 후 자동 재부팅 |
 | POST | `/api/system/restart` | | `202 {"ok":true}` 후 500ms 뒤 재부팅 |
 | POST | `/api/system/factory_reset` | `{"confirm":"RESET"}` | 설정 삭제 → 재부팅 |
 | POST | `/api/system/rediscover` | | Discovery 전체 재발행 |

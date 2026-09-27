@@ -72,6 +72,7 @@ private:
     void runCommand(const SwitchCommand& cmd);
     void slotJson(const Slot& s, JsonObject o);
     void publishSwitch(Slot& s, size_t idx);
+    void publishMeta(Slot& s);
     void publishAvailability(Slot& s, bool online);
 
     ConfigStore* store_ = nullptr;

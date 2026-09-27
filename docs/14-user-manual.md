@@ -52,6 +52,8 @@ pio run -t buildfs          # LittleFS 이미지 (data/ → littlefs.bin)
 pio test -e native          # 순수 로직 단위 테스트
 ```
 
+- 플랫폼은 Arduino core 3.x 커뮤니티 포크(pioarduino, `platformio.ini`에 버전 고정)다. 디스플레이 RGB 패널이 ESP-IDF 5의 bounce buffer를 필요로 해서 core 2.x(공식 espressif32 6.x)에서 옮겼다.
+- `esp32s3` 빌드에는 디스플레이 역할(LVGL·패널 드라이버)이 들어 있어 한 펌웨어로 브로커·노드·디스플레이를 모두 쓴다. `esp32dev`는 디스플레이 없이 빌드된다.
 - 최초 빌드는 툴체인 다운로드로 5분 이상 걸린다. 이후 증분 빌드는 수십 초.
 - 펌웨어 버전 문자열은 `platformio.ini`의 `-DFW_VERSION`.
 
@@ -102,9 +104,12 @@ pio run -t upload --upload-port /dev/cu.usbmodem101
 
 ## 5. 최초 설정 (AP 모드)
 
-1. 전원 인가. 설정이 없으면 AP `essio-<device_id>` (비밀번호 `12341234`)가 뜬다.
+1. 전원 인가. Wi-Fi 접속에 60초 동안 실패하면 설정용 AP `RV-SETUP-<device_id>` (비밀번호 `12341234`)가 뜬다.
 2. 스마트폰/PC로 AP에 접속 → 브라우저에서 `http://192.168.4.1/` (캡티브 포털 감지 시 자동으로 열림).
-3. 현재 UI는 상태 확인·스위치 토글만 지원하므로 **WiFi/MQTT 설정은 API로 넣는다**:
+3. 설정 파일이 없는 보드면 **최초 설정 마법사**가 뜬다:
+   모드(브로커 / 장치 드라이버 / 디스플레이) → 디스플레이면 패널·밝기 → Wi-Fi → **저장하고 재부팅**.
+   동작 모드 카드에서 "디스플레이"를 골라도 같은 마법사가 뜬다(패널 설정 후 재부팅해야 하므로).
+   이후 Wi-Fi·MQTT·브로커·디스플레이 값은 "연결 설정" 카드에서 바꾼다. API로 넣어도 된다:
 
 ```bash
 # 현재 설정 받아서 파일로

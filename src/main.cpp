@@ -1,8 +1,9 @@
 // ess.io2 — 조립만 담당. 구조: docs/11-architecture.md, 역할: docs/15-roles.md
 //
-// 한 펌웨어가 두 가지로 동작한다. 웹 UI에서 고른 device.role이 어느 쪽인지 결정한다.
-//   Broker — 내장 MQTT 호스트. 장치 폴링·슬롯 없음.
-//   Node   — 장치 1대를 폴링해 브로커로 발행하는 클라이언트.
+// 한 펌웨어가 세 가지로 동작한다. 웹 UI에서 고른 device.role이 어느 쪽인지 결정한다.
+//   Broker  — 내장 MQTT 호스트. 장치 폴링·슬롯 없음.
+//   Node    — 장치 1대를 폴링해 브로커로 발행하는 클라이언트.
+//   Display — 브로커에 붙어 모든 노드를 화면에 보이고 터치로 스위치를 조작. 장치 폴링·슬롯 없음.
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 
@@ -17,6 +18,7 @@
 #include "core/Scheduler.h"
 #include "core/SysInfo.h"
 #include "core/WebApi.h"
+#include "display/DisplayService.h"
 #include "port/SerialPort.h"
 
 using namespace essio;
@@ -35,8 +37,10 @@ HaDiscovery discovery;
 IoManager io;
 BrokerService broker;
 WebApi web;
+DisplayService display;
 
 bool brokerRole = false;
+bool displayRole = false;
 uint32_t lastSysInfoMs = 0;
 
 bool wifiReady() { return net.staConnected(); }
@@ -44,6 +48,7 @@ bool wifiReady() { return net.staConnected(); }
 // MQTT 수신 (Node 역할): <prefix>/switch/<name>/set, <base>/sys/cmd, <discovery>/status
 void onMqttMessage(const String& topic, const String& payload) {
     String base = mqtt.baseTopic();
+    if (displayRole && display.onMessage(topic, payload)) return;
 
     if (topic == mqtt.discoveryPrefix() + "/status") {
         if (payload == "online") {
@@ -78,6 +83,10 @@ void subscribeAll() {
     String base = mqtt.baseTopic();
     mqtt.subscribe(mqtt.discoveryPrefix() + "/status");
     mqtt.subscribe(base + "/sys/cmd");
+    if (displayRole) {
+        display.subscribeAll();
+        return;
+    }
     for (uint8_t i = 0; i < scheduler.slotCount(); i++) {
         Slot* s = scheduler.slot(i);
         if (s->enabled) mqtt.subscribe(scheduler.slotPrefix(*s) + "/switch/+/set");
@@ -86,6 +95,7 @@ void subscribeAll() {
 
 void onMqttConnected() {
     mqtt.publish(mqtt.baseTopic() + "/status", "online", true);
+    if (displayRole) return;
     discovery.publishAll();
     scheduler.publishAll();
 }
@@ -125,6 +135,14 @@ void applyConfig(uint16_t changed) {
         if (changed & CFG_BROKER) broker.begin(configStore);
         return;
     }
+    if (displayRole) {
+        if (changed & CFG_DISPLAY) display.applyConfig();
+        if (changed & CFG_MQTT) {
+            mqtt.applyConfig();
+            subscribeAll();
+        }
+        return;
+    }
 
     if (changed & CFG_PORTS) scheduler.applyPorts();
     else if (changed & CFG_SLOTS) scheduler.applySlots();
@@ -147,18 +165,24 @@ void setup() {
     configStore.begin();
     logger.setLevel(Logger::parseLevel(configStore.get().device.logLevel));
     brokerRole = configStore.isBroker();
+    displayRole = configStore.isDisplay();
     LOG_I("role: %s", ConfigStore::roleName(configStore.role()));
 
     net.begin(configStore);
 
-    // 양쪽 역할 모두 포인터는 연결해 둔다. Broker 역할에서는 active=false로 두어
-    // MQTT 클라이언트가 접속하지 않고 슬롯·포트도 만들지 않는다(웹 API 조회만 안전하게 동작).
+    // 모든 역할에서 포인터는 연결해 둔다. Broker 역할에서는 MQTT 클라이언트를 active=false로 두어
+    // 접속하지 않는다. 슬롯·포트는 Node에서만 만든다 — Display 보드는 GPIO 대부분을 패널이 쓴다.
     mqtt.begin(configStore, wifiReady, !brokerRole);
-    scheduler.begin(configStore, ports, mqtt, !brokerRole);
+    scheduler.begin(configStore, ports, mqtt, !brokerRole && !displayRole);
     discovery.begin(configStore, mqtt, scheduler);
 
     if (brokerRole) {
         broker.begin(configStore);
+    } else if (displayRole) {
+        display.begin(configStore, mqtt, net);
+        mqtt.setMessageHandler(onMqttMessage);
+        mqtt.setConnectedHandler(onMqttConnected);
+        subscribeAll();
     } else {
         mqtt.setMessageHandler(onMqttMessage);
         mqtt.setConnectedHandler(onMqttConnected);
@@ -169,9 +193,11 @@ void setup() {
     web.begin(configStore, net, mqtt, scheduler, discovery, broker);
     web.setApplyHandler(applyConfig);
 
-    esp_task_wdt_init(WDT_TIMEOUT_S, true);
+    // core 3.x는 부팅 때 TWDT를 이미 초기화하므로 reconfigure로 제한 시간만 바꾼다.
+    const esp_task_wdt_config_t wdt = {.timeout_ms = WDT_TIMEOUT_S * 1000, .idle_core_mask = 0, .trigger_panic = true};
+    if (esp_task_wdt_reconfigure(&wdt) != ESP_OK) esp_task_wdt_init(&wdt);
     esp_task_wdt_add(nullptr);
-    LOG_I("setup done, heap %u", ESP.getFreeHeap());
+    LOG_I("setup done, heap %u", (unsigned)ESP.getFreeHeap());
 }
 
 void loop() {
@@ -180,6 +206,9 @@ void loop() {
 
     if (brokerRole) {
         broker.tick();
+    } else if (displayRole) {
+        mqtt.tick();
+        display.tick();
     } else {
         mqtt.tick();
         io.tick();

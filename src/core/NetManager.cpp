@@ -45,7 +45,9 @@ void NetManager::applyConfig() {
     const bool broker = cfg.device.role == DeviceRole::Broker;
 
     hostname_ = cfg.device.hostname.length() ? cfg.device.hostname
-                                            : (broker ? String("broker") : "rv-node-" + deviceId());
+                : broker                                   ? String("broker")
+                : cfg.device.role == DeviceRole::Display ? "rv-display-" + deviceId()
+                                                           : "rv-node-" + deviceId();
     hostname_.toLowerCase();
     // 브로커의 SoftAP는 노드들이 2순위로 찾아오는 망이므로 이름을 고정한다(설계서 §3.2).
     apSsid_ = cfg.wifi.ap.ssid.length() ? cfg.wifi.ap.ssid
@@ -87,12 +89,14 @@ bool NetManager::routerVisible() {
     // AP가 떠 있으면 스캔 동안만 APSTA로 둔다. WIFI_STA로 바꾸면 접속한 노드들이 끊긴다.
     // 설계서 §3.1도 "전환 중에만 APSTA를 짧게 유지"로 허용한다.
     WiFi.mode(apActive_ ? WIFI_AP_STA : WIFI_STA);
-    int n = WiFi.scanNetworks(false, false, false, 400);  // 채널당 400ms ≈ 5초
+    // 채널당 120ms ≈ 1.6초. AP를 띄운 채 스캔하면 그동안 무선이 다른 채널에 가 있어
+    // 접속한 노드가 비컨을 놓친다 — 길게(400ms ≈ 5초) 잡으면 노드들이 끊겼다.
+    int n = WiFi.scanNetworks(false, false, false, 120);
     bool found = false;
     for (int i = 0; i < n; i++) {
         if (WiFi.SSID(i) == target) {
             found = true;
-            LOG_I("net: router '%s' found (%d dBm)", target.c_str(), WiFi.RSSI(i));
+            LOG_I("net: router '%s' found (%d dBm)", target.c_str(), (int)WiFi.RSSI(i));
             break;
         }
     }
@@ -132,6 +136,8 @@ void NetManager::startAp() {
     dns_.start(53, "*", WiFi.softAPIP());
     apActive_ = true;
     LOG_I("net: AP %s @ %s", apSsid_.c_str(), WiFi.softAPIP().toString().c_str());
+    // 브로커는 자기 AP 위에서도 broker.local로 찾혀야 한다(노드의 2순위 망)
+    if (store_->isBroker()) startMdns();
 }
 
 void NetManager::stopAp() {

@@ -11,7 +11,7 @@
 //   Broker — 부팅 시 라우터 SSID를 스캔해 있으면 STA 단독, 없으면 SoftAP 단독(설계서 §3.1).
 //            APSTA 상시 동작을 피해 처리량·지연 저하를 막는다. STA가 끊기면 30초 주기로 재탐색.
 //   Node   — 1순위 SSID(라우터) → 2순위 SSID(브로커 SoftAP) 순환 접속. 둘 다 실패가 계속되면
-//            설정용 SoftAP를 함께 띄운다.
+//            설정용 SoftAP를 함께 띄운다. Display도 Node와 같이 동작한다.
 namespace essio {
 
 enum class NetState : uint8_t { Boot, StaConnecting, StaConnected, ApSta, ApOnly };

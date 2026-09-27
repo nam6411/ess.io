@@ -34,7 +34,7 @@ public:
     String discoveryPrefix() const { return store_->get().mqtt.discoveryPrefix; }
     String clientId() const { return clientId_; }
     String brokerAddress() const { return host_; }
-    // mdns | last_good | manual | none — 어느 경로로 주소를 얻었는지 (docs/13-web-api.md)
+    // mdns | gateway | last_good | manual | none — 어느 경로로 주소를 얻었는지 (docs/13-web-api.md)
     const char* addressSource() const { return addressSource_; }
 
     bool publish(const String& topic, const String& payload, bool retain = false);

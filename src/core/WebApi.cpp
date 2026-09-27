@@ -107,6 +107,7 @@ void WebApi::setupRoutes() {
 String WebApi::currentMode() const {
     const Config& cfg = store_->get();
     if (cfg.device.role == DeviceRole::Broker) return "broker";
+    if (cfg.device.role == DeviceRole::Display) return "display";
     int8_t slot = store_->firstEnabledSlot();
     return slot >= 0 ? cfg.slots[slot].type : String("idle");
 }
@@ -135,6 +136,14 @@ void WebApi::handleModes(AsyncWebServerRequest* req) {
         o["baud"] = types[i].baud;
     }
 
+    JsonObject disp = modes.add<JsonObject>();
+    disp["id"] = "display";
+    disp["label"] = "디스플레이 (터치 화면)";
+    disp["role"] = "display";
+    disp["supported"] = ESSIO_DISPLAY ? true : false;  // 패널 드라이버가 이 빌드에 들어 있나
+    JsonArray panels = disp["panels"].to<JsonArray>();
+    for (const char* id : DISPLAY_PANELS) panels.add(id);
+
     JsonObject idle = modes.add<JsonObject>();
     idle["id"] = "idle";
     idle["label"] = "유휴 (발행 안 함)";
@@ -145,25 +154,34 @@ void WebApi::handleModes(AsyncWebServerRequest* req) {
 
 // 모드 하나를 고르면 role·slot·port 설정을 한 번에 맞춘다.
 // 역할이 바뀌면 재부팅이 필요하고(CFG_ROLE), 드라이버만 바뀌면 해당 슬롯만 재초기화된다.
+// 최초 설정 마법사는 config(wifi·display 등 부분 설정)를 함께 보내고 restart:true로 마무리한다.
 void WebApi::handleModeSet(AsyncWebServerRequest* req, JsonVariant& json) {
     if (!authorized(req)) return;
     String mode = json["mode"] | "";
     if (!mode.length()) return sendError(req, 400, "bad_request", "\"mode\" required");
 
     const bool toBroker = mode == "broker";
+    const bool toDisplay = mode == "display";
     const bool toIdle = mode == "idle";
-    const ModuleTypeInfo* info = toBroker || toIdle ? nullptr : ModuleRegistry::find(mode);
-    if (!toBroker && !toIdle && !info) return sendError(req, 400, "bad_request", "unknown mode: " + mode);
+    const bool noSlot = toBroker || toDisplay || toIdle;
+    const ModuleTypeInfo* info = noSlot ? nullptr : ModuleRegistry::find(mode);
+    if (!noSlot && !info) return sendError(req, 400, "bad_request", "unknown mode: " + mode);
+    if (toDisplay && !ESSIO_DISPLAY) return sendError(req, 400, "unsupported", "this firmware build has no display support");
+    JsonVariantConst extra = json["config"];
+    if (!extra.isNull() && !extra.is<JsonObjectConst>()) return sendError(req, 400, "bad_request", "\"config\" must be an object");
+    const bool restart = json["restart"] | false;
 
     JsonDocument patch;
-    patch["device"]["role"] = toBroker ? "broker" : "node";
+    // 마법사가 보낸 부분 설정을 먼저 깔고, 모드가 정하는 항목(role·slots·ports·base_topic)으로 덮는다
+    if (!extra.isNull()) patch.set(extra);
+    patch["device"]["role"] = toBroker ? "broker" : toDisplay ? "display" : "node";
     JsonArray slots = patch["slots"].to<JsonArray>();
     for (uint8_t i = 0; i < MAX_SLOTS; i++) {
         JsonObject s = slots.add<JsonObject>();
         s["index"] = i;
-        if (i != 0 || toBroker || toIdle) {
+        if (i != 0 || noSlot) {
             s["enabled"] = false;
-            if (i == 0 && (toBroker || toIdle)) s["type"] = "none";
+            if (i == 0 && noSlot) s["type"] = "none";
             continue;
         }
         s["enabled"] = true;
@@ -192,15 +210,15 @@ void WebApi::handleModeSet(AsyncWebServerRequest* req, JsonVariant& json) {
         return sendError(req, 409, "pending", "another action is pending");
     }
     pendingConfig_.set(patch);
-    pending_ = PendingAction::ApplyConfig;
+    pending_ = restart ? PendingAction::ApplyConfigRestart : PendingAction::ApplyConfig;
     pendingAtMs_ = millis();
     xSemaphoreGive(mutex_);
 
-    const bool roleChanges = toBroker != store_->isBroker();
+    const bool roleChanges = String(patch["device"]["role"].as<const char*>()) != ConfigStore::roleName(store_->role());
     JsonDocument doc;
     doc["ok"] = true;
     doc["mode"] = mode;
-    doc["restart_required"] = roleChanges;
+    doc["restart_required"] = roleChanges || restart;
     sendJson(req, doc, 202);
 }
 
@@ -210,6 +228,7 @@ void WebApi::handleSystemInfo(AsyncWebServerRequest* req) {
     sysInfoJson(doc, *net_, *mqtt_);
     doc["role"] = ConfigStore::roleName(store_->role());
     doc["mode"] = currentMode();
+    doc["configured"] = store_->loadedFromFile();  // false면 웹 UI가 최초 설정 마법사를 띄운다
     if (store_->isBroker()) broker_->statusJson(doc["broker"].to<JsonObject>());
     JsonArray slots = doc["slots"].to<JsonArray>();
     for (uint8_t i = 0; i < scheduler_->slotCount(); i++) {
@@ -348,13 +367,14 @@ void WebApi::tick() {
     if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) != pdTRUE) return;
     PendingAction action = pending_;
     JsonDocument cfg;
-    if (action == PendingAction::ApplyConfig) cfg.set(pendingConfig_);
+    if (action == PendingAction::ApplyConfig || action == PendingAction::ApplyConfigRestart) cfg.set(pendingConfig_);
     pending_ = PendingAction::None;
     pendingConfig_.clear();
     xSemaphoreGive(mutex_);
 
     switch (action) {
-        case PendingAction::ApplyConfig: {
+        case PendingAction::ApplyConfig:
+        case PendingAction::ApplyConfigRestart: {
             String error;
             uint16_t changed = 0;
             if (!store_->fromJson(cfg.as<JsonVariantConst>(), error, changed)) {
@@ -363,6 +383,11 @@ void WebApi::tick() {
             }
             store_->save();
             LOG_I("web: config applied, changed=0x%04X", changed);
+            if (action == PendingAction::ApplyConfigRestart) {
+                LOG_W("web: restart after setup");
+                delay(300);
+                ESP.restart();
+            }
             if (onApply_) onApply_(changed);
             break;
         }

@@ -12,6 +12,8 @@ bool retainable(const char* topic) {
            PicoMQTT::Subscriber::topic_matches("+/+/state", topic) ||
            PicoMQTT::Subscriber::topic_matches("+/+/status", topic) ||
            PicoMQTT::Subscriber::topic_matches("+/+/availability", topic) ||
+           PicoMQTT::Subscriber::topic_matches("+/+/meta", topic) ||
+           PicoMQTT::Subscriber::topic_matches("+/+/+/meta", topic) ||
            PicoMQTT::Subscriber::topic_matches("+/+/switch/#", topic) ||
            PicoMQTT::Subscriber::topic_matches("+/status", topic) ||
            PicoMQTT::Subscriber::topic_matches("+/diag/#", topic) ||

@@ -3,6 +3,12 @@
 #include <ArduinoJson.h>
 
 // 설정 데이터 모델. 스키마: docs/12-config-schema.md
+
+// Display 역할 지원 여부 — platformio.ini의 esp32s3 env만 1 (패널 드라이버·LVGL 포함)
+#ifndef ESSIO_DISPLAY
+#define ESSIO_DISPLAY 0
+#endif
+
 namespace essio {
 
 constexpr uint8_t SCHEMA_VERSION = 1;
@@ -62,7 +68,11 @@ struct OutputConfig {
 // 이 보드가 무엇으로 동작하는가 (docs/15-roles.md)
 //   Broker — 로컬 MQTT 호스트. 장치 폴링 없음.
 //   Node   — 장치 1대를 물고 폴링해 브로커로 발행하는 클라이언트.
-enum class DeviceRole : uint8_t { Node, Broker };
+//   Display — 브로커에 붙어 모든 노드의 상태를 화면에 보이고 터치로 스위치를 조작한다.
+enum class DeviceRole : uint8_t { Node, Broker, Display };
+
+// 디스플레이 역할이 지원하는 패널 보드 (DisplayService가 이 id로 드라이버를 고른다)
+constexpr const char* DISPLAY_PANELS[] = {"crowpanel_2_1"};
 
 struct Config {
     struct {
@@ -116,6 +126,15 @@ struct Config {
         uint16_t retainSlots = 48;  // 보관할 retained 토픽 수
     } broker;
 
+    // Display 역할: 패널·밝기·구독 범위
+    struct {
+        String panel = "crowpanel_2_1";
+        uint8_t brightness = 80;     // % (5..100)
+        uint16_t dimAfterS = 60;     // 입력이 없으면 이 시간 뒤 어둡게. 0 = 끄지 않음
+        uint8_t dimBrightness = 10;  // 어둡게 할 때 밝기 %
+        String topicRoot = "rv";     // rv/<node>/... 를 구독
+    } display;
+
     struct {
         bool enabled = false;
         String username = "admin";
@@ -140,6 +159,7 @@ enum ConfigSection : uint16_t {
     CFG_SLOTS = 1 << 5,
     CFG_IO = 1 << 6,
     CFG_BROKER = 1 << 7,
+    CFG_DISPLAY = 1 << 9,
     CFG_ROLE = 1 << 8,  // 역할 전환 — 재부팅으로만 적용
     CFG_ALL = 0xFFFF,
 };
@@ -174,6 +194,7 @@ public:
 
     DeviceRole role() const { return cfg_.device.role; }
     bool isBroker() const { return cfg_.device.role == DeviceRole::Broker; }
+    bool isDisplay() const { return cfg_.device.role == DeviceRole::Display; }
     // 활성 슬롯 수 / 첫 활성 슬롯 (-1 = 없음)
     uint8_t enabledSlotCount() const;
     int8_t firstEnabledSlot() const;

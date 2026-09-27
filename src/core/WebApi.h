@@ -16,7 +16,7 @@
 // 핸들러는 AsyncTCP 태스크에서 실행되므로 읽기(스냅샷)만 직접 하고, 쓰기는 pending으로 넘겨 tick()에서 처리.
 namespace essio {
 
-enum class PendingAction : uint8_t { None, ApplyConfig, Restart, FactoryReset, Rediscover, LegacyCleanup };
+enum class PendingAction : uint8_t { None, ApplyConfig, ApplyConfigRestart, Restart, FactoryReset, Rediscover, LegacyCleanup };
 
 class WebApi {
 public:

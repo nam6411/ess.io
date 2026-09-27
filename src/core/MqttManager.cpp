@@ -37,6 +37,8 @@ void MqttManager::applyConfig() {
         baseTopic_ = m.baseTopic;
     } else if (cfg.device.role == DeviceRole::Broker) {
         baseTopic_ = "rv/broker";
+    } else if (cfg.device.role == DeviceRole::Display) {
+        baseTopic_ = cfg.display.topicRoot + "/display-" + deviceId();
     } else {
         int8_t slot = store_->firstEnabledSlot();
         baseTopic_ = "rv/" + (slot >= 0 ? cfg.slots[slot].slug : "node-" + deviceId());
@@ -53,7 +55,7 @@ void MqttManager::applyConfig() {
     if (state_ == MqttState::Disabled && active_) LOG_I("mqtt: disabled (no broker address)");
 }
 
-// 설계서 §11.6: mDNS 기본 → 마지막 성공 IP → 수동 입력.
+// 설계서 §11.6: mDNS 기본 → (브로커 AP면 게이트웨이) → 마지막 성공 IP → 수동 입력.
 // mdns_name을 비우면 mDNS를 건너뛰므로 수동 주소만 쓰게 된다.
 bool MqttManager::resolveBroker() {
     const auto& m = store_->get().mqtt;
@@ -68,8 +70,18 @@ bool MqttManager::resolveBroker() {
         LOG_W("mqtt: mDNS '%s.local' not resolved", m.mdnsName.c_str());
     }
 
+    // 브로커 SoftAP(2순위 망)에 붙어 있으면 게이트웨이가 곧 브로커다.
+    // 브로커가 mDNS 응답을 못 하는 상황에서도 바로 찾을 수 있게 NVS·수동 주소보다 먼저 본다.
+    const auto& w = store_->get().wifi;
+    if (w.fallbackSsid.length() && WiFi.SSID() == w.fallbackSsid && WiFi.gatewayIP() != IPAddress((uint32_t)0)) {
+        host_ = WiFi.gatewayIP().toString();
+        addressSource_ = "gateway";
+        return true;
+    }
+
+    // 쓰기 모드로 연다: 읽기 전용은 네임스페이스가 아직 없으면 매번 오류 로그를 남긴다
     Preferences prefs;
-    if (prefs.begin(NVS_NAMESPACE, true)) {
+    if (prefs.begin(NVS_NAMESPACE, false)) {
         String saved = prefs.getString(NVS_KEY_BROKER, "");
         prefs.end();
         if (saved.length()) {

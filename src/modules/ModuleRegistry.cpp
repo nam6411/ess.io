@@ -2,6 +2,7 @@
 
 #include "IDeviceModule.h"
 #include "jbdbms/Jbdbms.h"
+#include "mach/Mach.h"
 #include "rtusw/RtuSwMk1.h"
 #include "rtusw/RtuSwMk2.h"
 #include "upower/Upower.h"
@@ -15,6 +16,8 @@ const ModuleTypeInfo TYPES[] = {
     {"jbdbms", "JBD BMS", 0, "bms", 0, 9600, 5000},
     {"rtusw_mk1", "RTU 스위치 Mk1 (Coil)", 8, "rtu", 255, 9600, 3000},
     {"rtusw_mk2", "RTU 스위치 Mk2 (Register)", 4, "rtu", 1, 9600, 3000},
+    // 프로토콜 미확인 — 수신 바이트만 기록하는 더미. 보레이트는 스니핑하며 맞춘다.
+    {"mach", "MACH BMS (미구현·스니핑)", 0, "mach", 0, 9600, 1000},
 };
 }
 
@@ -39,6 +42,7 @@ IDeviceModule* ModuleRegistry::create(const String& type) {
     if (type == "jbdbms") return new Jbdbms();
     if (type == "rtusw_mk1") return new RtuSwMk1();
     if (type == "rtusw_mk2") return new RtuSwMk2();
+    if (type == "mach") return new Mach();
     return nullptr;
 }
 

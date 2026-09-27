@@ -43,10 +43,26 @@
   .feed .tx { color: #0d6b60; } .feed .rx { color: #2563eb; } .feed .fail { color: #dc2626; }
   .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
   .toolbar input { flex: 1; min-width: 8rem; }
+  #wizard { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: flex-start;
+            justify-content: center; padding: 16px; overflow-y: auto; z-index: 10; }
+  #wizard[hidden] { display: none; }  /* 위의 display:flex가 hidden 속성을 덮지 않게 */
+  #wizard .card { width: 100%; max-width: 34rem; margin-top: 4vh; }
+  .choices { display: flex; flex-direction: column; gap: 6px; }
+  .choice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid rgba(128,128,128,.35);
+            border-radius: 8px; cursor: pointer; }
+  .choice input { margin-top: 3px; }
+  .choice b { display: block; font-size: .9rem; }
+  .choice span { font-size: .78rem; color: #71717a; }
+  .choice.disabled { opacity: .45; cursor: not-allowed; }
+  .steps { font-size: .75rem; color: #71717a; margin-bottom: 8px; }
+  input[type=range] { width: 100%; }
+  select.full { width: 100%; }
 </style>
 </head>
 <body>
 <h1>ess.io2 <span id="dev" class="badge"></span></h1>
+
+<div id="wizard" hidden><div class="card" id="wizCard"></div></div>
 
 <div class="card">
   <h2>동작 모드</h2>
@@ -96,15 +112,19 @@ async function post(p, body) {
   return r;
 }
 
+let modes = [];
 async function loadModes() {
   const m = await api('/api/system/modes');
+  modes = m.modes;
   $('#mode').innerHTML = m.modes.map(x =>
-    `<option value="${x.id}" ${x.id === m.current ? 'selected' : ''}>${x.label}</option>`).join('');
+    `<option value="${x.id}" ${x.id === m.current ? 'selected' : ''} ${x.supported === false ? 'disabled' : ''}>${x.label}</option>`).join('');
   modesLoaded = true;
 }
 
 async function setMode() {
   const mode = $('#mode').value;
+  // 디스플레이는 패널 설정을 받은 뒤 재부팅해야 하므로 마법사로 넘긴다
+  if (mode === 'display') return openWizard('display');
   const r = await post('/api/system/mode', { mode });
   if (r.ok) {
     $('#modeHint').textContent = r.restart_required
@@ -122,6 +142,7 @@ async function refresh() {
   try {
     if (!modesLoaded) await loadModes();
     const sys = await api('/api/system/info');
+    if (sys.configured === false && !wizardShown) openWizard();
     $('#dev').textContent = `${sys.device_id} · ${sys.mode}`;
     $('#sys').innerHTML = `<h2>상태</h2>
       <div class="row"><span>IP</span><span>${sys.ip || sys.ap_ip || '-'}</span></div>
@@ -132,7 +153,7 @@ async function refresh() {
       <div class="row"><span>Uptime</span><span>${sys.uptime_s}s</span></div>`;
 
     if (role !== sys.role) { role = sys.role; loadSettings(); }
-    if (sys.role === 'broker') { $('#slots').innerHTML = ''; return; }
+    if (sys.role !== 'node') { $('#slots').innerHTML = ''; return; }
 
     const slots = await api('/api/slots');
     $('#slots').innerHTML = slots.filter(s => s.enabled).map(s => `
@@ -194,7 +215,7 @@ async function pollMqtt() {
     } else if (r.client) {
       const c = r.client;
       const ok = c.state === 'connected';
-      const src = { mdns: 'mDNS', last_good: '마지막 성공 주소', manual: '수동 입력', none: '-' }[c.address_source] || c.address_source;
+      const src = { mdns: 'mDNS', gateway: '브로커 AP 게이트웨이', last_good: '마지막 성공 주소', manual: '수동 입력', none: '-' }[c.address_source] || c.address_source;
       $('#mqttStatus').innerHTML =
         row('상태', `<span class="badge ${ok ? 'on' : 'off'}">${c.state}</span>${ok ? ` <span class="hint">${dur(c.connected_s)}</span>` : ''}`) +
         row('브로커', `${esc(c.broker || '-')}:${c.port} <span class="hint">(${src})</span>`) +
@@ -204,6 +225,118 @@ async function pollMqtt() {
         row('발행 / 실패 / 수신', `${c.published} / ${c.failed} / ${c.received}`);
     }
   } catch (e) { $('#mqttStatus').textContent = 'error: ' + e; }
+}
+
+// ---- 최초 설정 마법사: 모드 → (디스플레이면 패널 설정) → Wi-Fi → 저장·재부팅 ----
+// POST /api/system/mode {mode, config:{wifi, display}, restart:true} 한 번으로 끝낸다.
+const PANELS = { crowpanel_2_1: 'Elecrow CrowPanel 2.1" 원형 480×480 (노브)' };
+let wizardShown = false;
+const wiz = { step: 0, mode: null, cfg: null };
+
+async function openWizard(mode) {
+  wizardShown = true;
+  if (!modesLoaded) await loadModes();
+  wiz.cfg = await api('/api/config');
+  wiz.mode = mode || null;
+  wiz.step = mode ? 1 : 0;
+  $('#wizard').hidden = false;
+  renderWizard();
+}
+
+function closeWizard() { $('#wizard').hidden = true; }
+
+function wizSteps() { return ['모드', ...(wiz.mode === 'display' ? ['디스플레이'] : []), 'Wi-Fi', '확인']; }
+
+function renderWizard() {
+  const steps = wizSteps();
+  const name = steps[wiz.step];
+  const c = wiz.cfg;
+  const head = `<div class="steps">${steps.map((x, i) => i === wiz.step ? `<b>${i + 1}. ${x}</b>` : `${i + 1}. ${x}`).join(' → ')}</div>`;
+  let body = '', next = '다음';
+
+  if (name === '모드') {
+    const desc = { broker: '로컬 MQTT 호스트. 다른 보드들이 여기로 접속합니다.', display: '브로커에 붙어 모든 장치를 화면에 보이고 터치로 켜고 끕니다.', idle: '아무것도 하지 않습니다.' };
+    body = `<h2>이 보드를 어디에 쓸까요?</h2><div class="choices">` + modes.map(m => {
+      const off = m.supported === false;
+      const d = desc[m.id] || `장치 클라이언트 — ${esc(m.label)} 를 폴링해 브로커로 보냅니다.`;
+      return `<label class="choice ${off ? 'disabled' : ''}"><input type="radio" name="wm" value="${m.id}" ${wiz.mode === m.id ? 'checked' : ''} ${off ? 'disabled' : ''}>
+        <div><b>${esc(m.label)}</b><span>${off ? '이 펌웨어 빌드에는 디스플레이 드라이버가 없습니다 (ESP32-S3 전용).' : d}</span></div></label>`;
+    }).join('') + `</div>`;
+  } else if (name === '디스플레이') {
+    const d = c.display;
+    body = `<h2>디스플레이 설정</h2><div class="grid">
+      <label class="wide">패널<select class="full" id="wd_panel">${Object.entries(PANELS).map(([id, l]) =>
+        `<option value="${id}" ${d.panel === id ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="wide">밝기 <span id="wd_bv">${d.brightness}%</span><input type="range" id="wd_bright" min="5" max="100" value="${d.brightness}" oninput="$('#wd_bv').textContent=this.value+'%'"></label>
+      ${field('wd_dim', '입력 없으면 어둡게 (초, 0=안 함)', d.dim_after_s, 'number')}
+      ${field('wd_dimb', '어둡게 할 때 밝기 (%)', d.dim_brightness, 'number')}
+      ${field('wd_root', '구독할 토픽 루트', d.topic_root, 'text', ' class="wide"')}
+    </div><div class="hint">패널은 재부팅 후에 켜집니다. 밝기·어둡게 설정은 나중에 "연결 설정"에서 바로 바꿀 수 있습니다.</div>`;
+  } else if (name === 'Wi-Fi') {
+    const w = c.wifi, broker = wiz.mode === 'broker';
+    body = `<h2>Wi-Fi</h2><div class="grid">
+      ${field('ww_ssid', '라우터 SSID (없으면 비움)', w.ssid)}
+      ${field('ww_pass', '라우터 비밀번호', w.password, 'password')}
+      ${field('ww_fssid', broker ? '라우터 없을 때 띄울 AP SSID' : '브로커 AP SSID (2순위)', w.fallback_ssid)}
+      ${field('ww_fpass', broker ? '그 AP 비밀번호' : '브로커 AP 비밀번호', w.fallback_password, 'password')}
+    </div><div class="hint">${broker ? '라우터가 보이면 라우터에, 없으면 스스로 AP를 띄웁니다.' : '라우터 → 브로커 AP 순서로 접속합니다. 둘 다 실패하면 설정용 AP(RV-SETUP-…)가 다시 켜집니다.'}</div>`;
+  } else {
+    const m = modes.find(x => x.id === wiz.mode);
+    const w = wiz.wifi || {};
+    body = `<h2>확인</h2>
+      ${row('모드', esc(m ? m.label : wiz.mode))}
+      ${wiz.display ? row('패널', esc(PANELS[wiz.display.panel] || wiz.display.panel)) + row('밝기', wiz.display.brightness + '%') : ''}
+      ${row('라우터', esc(w.ssid || '(없음)'))}
+      ${row(wiz.mode === 'broker' ? '폴백 AP' : '브로커 AP', esc(w.fallback_ssid || '-'))}
+      <div class="hint">저장하면 재부팅합니다. 약 1분 뒤 보드가 접속한 망에서 다시 여세요. 접속에 실패하면 설정용 AP가 다시 켜집니다.</div>
+      <div class="msg" id="wizMsg"></div>`;
+    next = '저장하고 재부팅';
+  }
+
+  const back = wiz.step > 0 ? `<button onclick="wizBack()">이전</button>` : '';
+  const later = `<button onclick="closeWizard()">나중에</button>`;
+  $('#wizCard').innerHTML = head + body +
+    `<div class="actions">${back}<button class="primary" id="wizNext" onclick="wizNext()">${next}</button>${later}</div>`;
+}
+
+function wizBack() { wizCollect(); wiz.step--; renderWizard(); }
+
+function wizCollect() {
+  const name = wizSteps()[wiz.step];
+  if (name === '모드') {
+    const r = document.querySelector('input[name=wm]:checked');
+    wiz.mode = r ? r.value : null;
+  } else if (name === '디스플레이') {
+    wiz.display = { panel: val('wd_panel'), brightness: num('wd_bright'), dim_after_s: num('wd_dim'),
+                    dim_brightness: num('wd_dimb'), topic_root: val('wd_root').trim() };
+    wiz.cfg.display = { ...wiz.cfg.display, ...wiz.display };
+  } else if (name === 'Wi-Fi') {
+    wiz.wifi = { ssid: val('ww_ssid').trim(), password: val('ww_pass'),
+                 fallback_ssid: val('ww_fssid').trim(), fallback_password: val('ww_fpass') };
+    wiz.cfg.wifi = { ...wiz.cfg.wifi, ...wiz.wifi };
+  }
+}
+
+async function wizNext() {
+  wizCollect();
+  const steps = wizSteps();
+  if (steps[wiz.step] === '모드' && !wiz.mode) return;
+  if (wiz.mode !== 'display') wiz.display = null;
+  if (wiz.step < steps.length - 1) { wiz.step++; return renderWizard(); }
+
+  const config = {};
+  if (wiz.wifi) config.wifi = wiz.wifi;
+  if (wiz.display) config.display = wiz.display;
+  $('#wizNext').disabled = true;
+  const r = await api('/api/system/mode', { method: 'POST', headers: H, body: JSON.stringify({ mode: wiz.mode, config, restart: true }) });
+  if (r.error) {
+    $('#wizMsg').className = 'msg err';
+    $('#wizMsg').textContent = r.message || r.error;
+    $('#wizNext').disabled = false;
+    return;
+  }
+  $('#wizCard').innerHTML = `<h2>재부팅 중…</h2><div class="hint">설정을 저장했습니다. 약 1분 뒤 보드가 접속한 망에서 이 페이지를 다시 여세요.
+    ${wiz.wifi && wiz.wifi.ssid ? `라우터 <b>${esc(wiz.wifi.ssid)}</b> 에서 IP를 확인하거나` : ''} 접속에 실패하면 설정용 AP로 다시 들어오면 됩니다.</div>`;
 }
 
 // ---- 연결 설정 (GET/PUT /api/config, 섹션 단위 부분 적용) ----
@@ -228,6 +361,18 @@ async function loadSettings() {
     </div>
     <div class="actions"><button class="primary" onclick="saveWifi()">Wi-Fi 저장</button><span class="msg" id="wifiMsg"></span></div>
     <div class="hint">저장하면 Wi-Fi가 다시 접속합니다. 지금 설정용 AP로 접속해 있다면 연결이 잠시 끊길 수 있습니다.</div>`;
+
+  if (c.device.role === 'display') {
+    const d = c.display;
+    h += `<h3>디스플레이</h3>
+      <div class="grid">
+        <label class="wide">밝기 <span id="d_bv">${d.brightness}%</span><input type="range" id="d_bright" min="5" max="100" value="${d.brightness}" oninput="$('#d_bv').textContent=this.value+'%'"></label>
+        ${field('d_dim', '입력 없으면 어둡게 (초, 0=안 함)', d.dim_after_s, 'number')}
+        ${field('d_dimb', '어둡게 할 때 밝기 (%)', d.dim_brightness, 'number')}
+      </div>
+      <div class="actions"><button class="primary" onclick="saveDisplay()">디스플레이 저장</button><span class="msg" id="displayMsg"></span></div>
+      <div class="hint">패널: ${esc(PANELS[d.panel] || d.panel)} · 토픽 루트 <code>${esc(d.topic_root)}</code>. 패널을 바꾸려면 동작 모드에서 디스플레이를 다시 고르세요.</div>`;
+  }
 
   if (broker) {
     h += `<h3>내장 브로커</h3>
@@ -279,6 +424,11 @@ function saveMqtt() {
     enabled: $('#m_en').checked, mdns_name: val('m_mdns').trim(), host: val('m_host').trim(), port: num('m_port'),
     base_topic: val('m_base').trim(), username: val('m_user'), password: val('m_pass'),
     discovery: { enabled: $('#m_disc').checked, prefix: val('m_dpre').trim() } } });
+}
+
+function saveDisplay() {
+  saveSection('displayMsg', { display: {
+    brightness: num('d_bright'), dim_after_s: num('d_dim'), dim_brightness: num('d_dimb') } });
 }
 
 function saveBroker() {
