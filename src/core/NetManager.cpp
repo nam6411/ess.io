@@ -14,11 +14,14 @@ void NetManager::begin(ConfigStore& store) {
     applyConfig();
 }
 
+// 접속 후보: 라우터 → (노드·디스플레이만) 브로커 SoftAP.
+// 브로커에게 fallback_ssid는 자기가 띄울 AP 이름이므로 후보가 아니다. 예전에는 후보로 넣어
+// 라우터가 없는 브로커가 부팅 후 60초 동안 자기 AP 이름으로 접속을 시도하느라 AP를 늦게 띄웠다.
 uint8_t NetManager::candidateCount() const {
     const auto& w = store_->get().wifi;
     uint8_t n = 0;
     if (w.ssid.length()) n++;
-    if (w.fallbackSsid.length()) n++;
+    if (w.fallbackSsid.length() && !store_->isBroker()) n++;
     return n;
 }
 
