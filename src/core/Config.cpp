@@ -108,9 +108,10 @@ int8_t ConfigStore::firstEnabledSlot() const {
 }
 
 bool ConfigStore::begin() {
-    if (!LittleFS.begin(false)) {
+    // 라벨 기본값은 "spiffs"다. partitions*.csv의 라벨(littlefs)을 명시한다.
+    if (!LittleFS.begin(false, "/littlefs", 10, "littlefs")) {
         LOG_W("LittleFS mount failed, formatting");
-        if (!LittleFS.begin(true)) {
+        if (!LittleFS.begin(true, "/littlefs", 10, "littlefs")) {
             LOG_E("LittleFS format failed");
             setDefaults();
             return false;
