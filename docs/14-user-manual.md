@@ -36,11 +36,20 @@ sudo usermod -aG dialout $USER   # 재로그인 필요
 
 ## 3. 빌드
 
+### 3.1 빌드 환경
+
+| env | 타겟 | 파티션 | 비고 |
+|---|---|---|---|
+| `esp32s3` (기본) | ESP32-S3 N16R8 (`esp32-s3-devkitc-1`) | `partitions_16mb.csv` — OTA 4MB ×2 + LittleFS 7.9MB | 설계서 §2·§8의 실제 타겟. 옥탈 PSRAM(`qio_opi`) |
+| `esp32dev` | 구형 ESP32 | `partitions.csv` — OTA 1.5MB ×2 + LittleFS 960KB | 초기 개발용 |
+| `native` | 호스트 PC | — | 프레임·CRC 단위 테스트 |
+
 ```bash
 cd ess.io2
-pio run                 # 펌웨어 (.pio/build/esp32dev/firmware.bin)
-pio run -t buildfs      # LittleFS 이미지 (data/ → littlefs.bin)
-pio test -e native      # 순수 로직 단위 테스트
+pio run                     # 기본 env(esp32s3) 펌웨어
+pio run -e esp32dev         # 구형 ESP32
+pio run -t buildfs          # LittleFS 이미지 (data/ → littlefs.bin)
+pio test -e native          # 순수 로직 단위 테스트
 ```
 
 - 최초 빌드는 툴체인 다운로드로 5분 이상 걸린다. 이후 증분 빌드는 수십 초.
@@ -52,7 +61,6 @@ pio test -e native      # 순수 로직 단위 테스트
 # 시리얼 포트 확인
 pio device list
 
-# 펌웨어 + 파일시스템 (포트 자동 감지 실패 시 --upload-port /dev/ttyUSB0)
 pio run -t upload
 pio run -t uploadfs
 
@@ -60,15 +68,34 @@ pio run -t uploadfs
 pio device monitor
 ```
 
-- `uploadfs`는 `data/index.html`(웹 UI)을 올린다. **설정 파일 `/config.json`도 같은 파티션에 있으므로 `uploadfs`를 하면 설정이 지워진다.** 운영 중인 장치는 §7.3 설정 백업 후 진행.
+포트 이름은 OS마다 다르다. 자동 감지가 실패하면 `--upload-port`로 직접 준다.
+
+| OS | 포트 예 |
+|---|---|
+| macOS (네이티브 USB / USB-Serial-JTAG) | `/dev/cu.usbmodem*` |
+| macOS (CP210x·CH340 브리지) | `/dev/cu.usbserial-*`, `/dev/cu.wchusbserial*` |
+| Linux | `/dev/ttyACM0` (네이티브 USB) / `/dev/ttyUSB0` (브리지) |
+
+```bash
+pio run -t upload --upload-port /dev/cu.usbmodem101
+```
+
+- **S3의 두 USB 포트를 구분할 것.** devkit에는 네이티브 `USB`와 브리지 `COM`/`UART` 포트가 따로 있다.
+  현재 `esp32s3` env는 `-DARDUINO_USB_CDC_ON_BOOT=1`이라 **로그가 네이티브 USB로 나간다.**
+  브리지 포트로 로그를 보려면 그 값을 `0`으로 바꿔 다시 빌드한다.
+- 열거가 안 되면: 데이터 케이블인지 확인 → 다른 USB 포트 → BOOT 버튼을 누른 채 꽂아 다운로드 모드로 진입.
+- `uploadfs`는 `data/index.html`(웹 UI)을 올린다. **설정 파일 `/config.json`도 같은 파티션에 있으므로 `uploadfs`를 하면 설정이 지워진다.** 운영 중인 장치는 §8.3 설정 백업 후 진행.
+- **보드를 `esp32dev` → `esp32s3`로 바꿨다면 첫 업로드 때 `uploadfs`를 같이 한다.** 예전 설정에 S3에 없는 핀(GPIO 22~25 등)이 들어 있으면 핀 검증에서 걸린다.
 - 부팅 로그 예:
   ```
   [     123] info ess.io2 0.2.0-dev starting, device A1B2C3
   [     130] info config: /config.json not found
   [     131] warn config: using defaults
-  [     140] info net: no SSID, AP only
-  [     141] info net: AP essio-A1B2C3 @ 192.168.4.1
-  [     150] info port 0 (RS485-A): hw1 rx=22 tx=23 115200 bps
+  [     132] info role: node
+  [     140] info net: no SSID configured, AP only
+  [     141] info net: AP RV-SETUP-A1B2C3 @ 192.168.4.1
+  [     150] info port 0 (RS485): hw1 rx=18 tx=17 115200 bps
+  [     155] info slot 0: upower 'upower' port=0 slave=10 every 5000 ms
   ...
   [     200] info web: started on :80
   ```

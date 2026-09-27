@@ -17,8 +17,9 @@ ESP32 기반 ESS(태양광/인버터/배터리) Modbus·UART → MQTT(Home Assis
 ## 소스 구조
 
 ```
-platformio.ini            esp32dev (Arduino core 2.0.x) + native 테스트 환경
-partitions.csv            OTA 2슬롯 + LittleFS 960KB
+platformio.ini            esp32s3(기본) / esp32dev / native 환경
+partitions_16mb.csv       ESP32-S3 N16R8: OTA 4MB ×2 + LittleFS 7.9MB
+partitions.csv            구형 ESP32 4MB: OTA 1.5MB ×2 + LittleFS 960KB
 data/index.html           임시 대시보드 (pio run -t uploadfs)
 src/
   main.cpp                조립·메인 루프
@@ -49,7 +50,9 @@ pio test -e native           # 순수 로직 테스트
 
 - [x] 기존 코드 분석 및 스펙 문서화 (docs/)
 - [x] 골격: 설정 저장소, 네트워크/MQTT 상태 머신, 슬롯 스케줄러, Modbus RTU, 모듈 4종 1차 구현, REST API 핵심, 임시 대시보드
-- [x] ESP32 타겟 빌드 검증 (Flash 64%, RAM 20%) + native 테스트 5/5
+- [x] 빌드 검증 — esp32s3 (Flash 24% / 4MB 슬롯), esp32dev (Flash 66%), native 테스트 5/5
+- [x] 웹 UI에서 브로커 호스트 / 장치 클라이언트 역할 선택 (docs/15-roles.md)
+- [ ] **실장치 검증 — 보드에 올려본 적 없음**
 - [ ] 정식 웹 UI (설정 탭), export/import, WiFi 스캔, 포트 진단 API
 - [ ] Discovery 삭제 토픽 기록(NVS), 레거시 정리
 - [ ] Jbdbms 충전 제한, Upower 스토리지 모드 (옵션 기능)
