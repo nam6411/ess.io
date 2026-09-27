@@ -22,6 +22,27 @@
   pre { font-size: .72rem; overflow-x: auto; margin: 8px 0 0; }
   .mode { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .hint { font-size: .78rem; color: #71717a; margin-top: 6px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .grid .wide { grid-column: 1 / -1; }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+  label { display: flex; flex-direction: column; gap: 3px; font-size: .78rem; color: #71717a; }
+  label.check { flex-direction: row; align-items: center; gap: 6px; }
+  input[type=text], input[type=password], input[type=number] {
+    padding: 6px 8px; border: 1px solid rgba(128,128,128,.4); border-radius: 6px;
+    background: transparent; color: inherit; font: inherit; font-size: .9rem; min-width: 0; }
+  h3 { font-size: .82rem; margin: 14px 0 6px; }
+  h3:first-of-type { margin-top: 4px; }
+  .actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .msg { font-size: .78rem; }
+  .msg.err { color: #dc2626; }
+  .feed { max-height: 22rem; overflow-y: auto; margin-top: 8px; font-family: ui-monospace, Menlo, monospace; font-size: .72rem; }
+  .feed .m { padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,.15); }
+  .feed .t { font-weight: 600; word-break: break-all; }
+  .feed .p { color: #71717a; word-break: break-all; white-space: pre-wrap; }
+  .feed .d { display: inline-block; min-width: 1.6rem; font-weight: 600; }
+  .feed .tx { color: #0d6b60; } .feed .rx { color: #2563eb; } .feed .fail { color: #dc2626; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .toolbar input { flex: 1; min-width: 8rem; }
 </style>
 </head>
 <body>
@@ -37,8 +58,24 @@
 </div>
 
 <div class="card" id="sys">loading…</div>
-<div id="brokerCard"></div>
+
+<div class="card">
+  <h2>MQTT 실시간</h2>
+  <div id="mqttStatus">loading…</div>
+  <div class="toolbar">
+    <input type="text" id="feedFilter" placeholder="토픽 필터 (부분 일치)" oninput="renderFeed()">
+    <button id="pauseBtn" onclick="togglePause()">일시정지</button>
+    <button onclick="feed = []; renderFeed()">지우기</button>
+  </div>
+  <div class="feed" id="feed"></div>
+</div>
+
 <div id="slots"></div>
+
+<div class="card">
+  <h2>연결 설정</h2>
+  <div id="settings">loading…</div>
+</div>
 
 <div class="card">
   <button onclick="post('/api/system/rediscover')">HA 재발행</button>
@@ -49,6 +86,8 @@
 const $ = s => document.querySelector(s);
 const H = { 'Content-Type': 'application/json', 'X-Requested-With': 'essio' };
 let modesLoaded = false;
+let role = null;
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 async function api(p, o) { const r = await fetch(p, o); return r.json(); }
 async function post(p, body) {
@@ -92,20 +131,8 @@ async function refresh() {
       <div class="row"><span>Heap</span><span>${sys.heap_free}</span></div>
       <div class="row"><span>Uptime</span><span>${sys.uptime_s}s</span></div>`;
 
-    if (sys.role === 'broker' && sys.broker) {
-      const b = sys.broker;
-      $('#brokerCard').innerHTML = `<div class="card"><h2>브로커</h2>
-        <div class="row"><span>수신 대기</span><span class="badge ${b.active ? 'on' : 'off'}">:${b.port}</span></div>
-        <div class="row"><span>접속 클라이언트</span><span>${b.clients ?? 0}</span></div>
-        <div class="row"><span>보관 중 retained</span><span>${b.retained ?? 0}</span></div>
-        <div class="row"><span>메시지 / 재생</span><span>${b.messages ?? 0} / ${b.replays ?? 0}</span></div>
-        <div class="row"><span>거부 / 누락</span><span>${b.rejected ?? 0} / ${b.dropped ?? 0}</span></div></div>`;
-      $('#slots').innerHTML = '';
-      return;
-    }
-    $('#brokerCard').innerHTML = `<div class="card"><h2>브로커 접속</h2>
-      <div class="row"><span>주소</span><span>${sys.mqtt_broker || '-'} (${sys.mqtt_address_source})</span></div>
-      <div class="row"><span>상태</span><span class="badge ${sys.mqtt_state === 'connected' ? 'on' : 'off'}">${sys.mqtt_state}</span></div></div>`;
+    if (role !== sys.role) { role = sys.role; loadSettings(); }
+    if (sys.role === 'broker') { $('#slots').innerHTML = ''; return; }
 
     const slots = await api('/api/slots');
     $('#slots').innerHTML = slots.filter(s => s.enabled).map(s => `
@@ -119,7 +146,148 @@ async function refresh() {
       </div>`).join('') || '<div class="card">활성 슬롯 없음 (유휴 모드)</div>';
   } catch (e) { $('#sys').textContent = 'error: ' + e; }
 }
+// ---- MQTT 실시간 (GET /api/mqtt?since=) ----
+const FEED_MAX = 200;
+let feed = [], feedSince = 0, paused = false;
+const row = (k, v) => `<div class="row"><span>${k}</span><span>${v}</span></div>`;
+const dur = s => s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m` : s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
+const RC = { '-4': '응답 없음', '-3': '연결 끊김', '-2': '접속 실패', '-1': '끊김', '1': '프로토콜 거부', '2': 'client id 거부', '3': '서버 불가', '4': '계정 오류', '5': '권한 없음' };
+
+function togglePause() {
+  paused = !paused;
+  $('#pauseBtn').textContent = paused ? '재개' : '일시정지';
+  if (!paused) renderFeed();
+}
+
+function renderFeed() {
+  if (paused) return;
+  const f = $('#feedFilter').value.trim();
+  const rows = feed.filter(m => !f || m.topic.includes(f)).slice().reverse();
+  $('#feed').innerHTML = rows.map(m => {
+    const cut = m.size > m.payload.length ? ` … (${m.size} B)` : '';
+    return `<div class="m"><span class="d ${m.failed ? 'fail' : m.dir}">${m.failed ? 'FAIL' : m.dir.toUpperCase()}</span>
+      <span class="t">${esc(m.topic)}</span>${m.retain ? ' <span class="badge">retain</span>' : ''}
+      <span class="hint" style="float:right">${new Date(m.at).toLocaleTimeString()}</span>
+      <div class="p">${esc(m.payload)}${cut}</div></div>`;
+  }).join('') || '<div class="hint">아직 메시지 없음</div>';
+}
+
+async function pollMqtt() {
+  try {
+    const r = await api('/api/mqtt?since=' + feedSince);
+    if (r.next < feedSince) feed = [];  // 장치 재부팅으로 seq가 처음부터 다시 시작
+    feedSince = r.next;
+    const now = Date.now();
+    for (const m of r.messages) { m.at = now; feed.push(m); }
+    if (feed.length > FEED_MAX) feed.splice(0, feed.length - FEED_MAX);
+    if (r.messages.length) renderFeed();
+
+    if (r.broker) {
+      const b = r.broker;
+      const list = (b.client_list || []).map(c => `${esc(c.id)} <span class="hint">${dur(c.connected_s)}</span>`).join('<br>') || '-';
+      $('#mqttStatus').innerHTML =
+        row('브로커', `<span class="badge ${b.active ? 'on' : 'off'}">${b.active ? '수신 대기' : '중지'} :${b.port}</span>`) +
+        row('접속 클라이언트', `${b.clients ?? 0}`) +
+        row('클라이언트 목록', `<span style="text-align:right">${list}</span>`) +
+        row('메시지 / retained', `${b.messages ?? 0} / ${b.retained ?? 0}`) +
+        row('재생 / 거부 / 누락', `${b.replays ?? 0} / ${b.rejected ?? 0} / ${b.dropped ?? 0}`);
+    } else if (r.client) {
+      const c = r.client;
+      const ok = c.state === 'connected';
+      const src = { mdns: 'mDNS', last_good: '마지막 성공 주소', manual: '수동 입력', none: '-' }[c.address_source] || c.address_source;
+      $('#mqttStatus').innerHTML =
+        row('상태', `<span class="badge ${ok ? 'on' : 'off'}">${c.state}</span>${ok ? ` <span class="hint">${dur(c.connected_s)}</span>` : ''}`) +
+        row('브로커', `${esc(c.broker || '-')}:${c.port} <span class="hint">(${src})</span>`) +
+        (!ok && c.last_rc ? row('마지막 오류', `rc=${c.last_rc} ${RC[c.last_rc] || ''}`) : '') +
+        row('client id', esc(c.client_id)) +
+        row('토픽 접두', esc(c.base_topic || '-')) +
+        row('발행 / 실패 / 수신', `${c.published} / ${c.failed} / ${c.received}`);
+    }
+  } catch (e) { $('#mqttStatus').textContent = 'error: ' + e; }
+}
+
+// ---- 연결 설정 (GET/PUT /api/config, 섹션 단위 부분 적용) ----
+const MASK = '********';
+const field = (id, label, value, type = 'text', extra = '') =>
+  `<label${extra}>${label}<input type="${type}" id="${id}" value="${esc(value)}" autocomplete="off"></label>`;
+const check = (id, label, on) => `<label class="check"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}>${label}</label>`;
+const val = id => $('#' + id).value;
+const num = id => parseInt(val(id), 10);
+
+async function loadSettings() {
+  const c = await api('/api/config');
+  const w = c.wifi, m = c.mqtt, b = c.broker;
+  const broker = c.device.role === 'broker';
+  let h = `<h3>Wi-Fi</h3>
+    <div class="grid">
+      ${field('w_ssid', '라우터 SSID', w.ssid)}
+      ${field('w_pass', '라우터 비밀번호', w.password, 'password')}
+      ${field('w_fssid', broker ? '라우터 없을 때 띄울 AP SSID' : '2순위 SSID (브로커 AP)', w.fallback_ssid)}
+      ${field('w_fpass', broker ? '그 AP 비밀번호' : '2순위 비밀번호', w.fallback_password, 'password')}
+      ${field('w_appass', `설정용 AP 비밀번호 (RV-SETUP-…)`, w.ap.password, 'password')}
+    </div>
+    <div class="actions"><button class="primary" onclick="saveWifi()">Wi-Fi 저장</button><span class="msg" id="wifiMsg"></span></div>
+    <div class="hint">저장하면 Wi-Fi가 다시 접속합니다. 지금 설정용 AP로 접속해 있다면 연결이 잠시 끊길 수 있습니다.</div>`;
+
+  if (broker) {
+    h += `<h3>내장 브로커</h3>
+      <div class="grid">
+        ${field('b_port', '수신 포트', b.port, 'number')}
+        ${field('b_max', '최대 클라이언트 (1–16)', b.max_clients, 'number')}
+        ${field('b_user', '사용자 (비우면 익명 허용)', b.username)}
+        ${field('b_pass', '비밀번호', b.password, 'password')}
+      </div>
+      <div class="actions"><button class="primary" onclick="saveBroker()">브로커 저장</button><span class="msg" id="brokerMsg"></span></div>
+      <div class="hint">저장하면 브로커가 다시 시작되어 접속 중인 클라이언트가 재접속합니다.</div>`;
+  } else {
+    h += `<h3>MQTT 브로커 접속</h3>
+      <div class="grid">
+        <div class="wide">${check('m_en', 'MQTT 사용', m.enabled)}</div>
+        ${field('m_mdns', 'mDNS 이름 (.local 제외, 비우면 생략)', m.mdns_name)}
+        ${field('m_host', '수동 주소 (IP 또는 호스트)', m.host)}
+        ${field('m_port', '포트', m.port, 'number')}
+        ${field('m_base', '토픽 접두 (비우면 자동)', m.base_topic)}
+        ${field('m_user', '사용자', m.username)}
+        ${field('m_pass', '비밀번호', m.password, 'password')}
+        ${check('m_disc', 'HA Discovery 발행', m.discovery.enabled)}
+        ${field('m_dpre', 'Discovery 접두', m.discovery.prefix)}
+      </div>
+      <div class="actions"><button class="primary" onclick="saveMqtt()">MQTT 저장</button><span class="msg" id="mqttMsg"></span></div>
+      <div class="hint">주소는 mDNS → 마지막 성공 주소 → 수동 주소 순서로 찾습니다. 수동 주소만 쓰려면 mDNS 이름을 비우세요.</div>`;
+  }
+  $('#settings').innerHTML = h;
+}
+
+async function saveSection(msgId, patch) {
+  const el = $('#' + msgId);
+  el.className = 'msg'; el.textContent = '저장 중…';
+  const r = await api('/api/config', { method: 'PUT', headers: H, body: JSON.stringify(patch) });
+  if (r.error) { el.className = 'msg err'; el.textContent = r.message || r.error; return; }
+  el.textContent = '저장됨 — 적용 중';
+  setTimeout(() => { loadSettings().catch(() => {}); }, 1500);
+}
+
+function saveWifi() {
+  saveSection('wifiMsg', { wifi: {
+    ssid: val('w_ssid'), password: val('w_pass'),
+    fallback_ssid: val('w_fssid'), fallback_password: val('w_fpass'),
+    ap: { password: val('w_appass') } } });
+}
+
+function saveMqtt() {
+  saveSection('mqttMsg', { mqtt: {
+    enabled: $('#m_en').checked, mdns_name: val('m_mdns').trim(), host: val('m_host').trim(), port: num('m_port'),
+    base_topic: val('m_base').trim(), username: val('m_user'), password: val('m_pass'),
+    discovery: { enabled: $('#m_disc').checked, prefix: val('m_dpre').trim() } } });
+}
+
+function saveBroker() {
+  saveSection('brokerMsg', { broker: {
+    port: num('b_port'), max_clients: num('b_max'), username: val('b_user'), password: val('b_pass') } });
+}
+
 refresh(); setInterval(refresh, 3000);
+pollMqtt(); setInterval(pollMqtt, 1000);
 </script>
 </body>
 </html>

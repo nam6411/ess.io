@@ -20,6 +20,7 @@
 | POST | `/api/system/rediscover` | | Discovery 전체 재발행 |
 | POST | `/api/system/legacy_cleanup` | | 레거시 config 토픽 삭제 발행 (1회) |
 | GET | `/api/system/log?since=<seq>` | | `{next:<seq>, lines:[{seq,ms,level,msg}]}` 링버퍼 200줄 |
+| GET | `/api/mqtt?since=<seq>` | | 실시간 MQTT 뷰. Node: `{role, client:{state, broker, port, address_source, mdns_name, client_id, base_topic, last_rc, connected_s, published, failed, received}}` / Broker: `{role, broker:{…/api/system/info의 broker, client_list:[{id, connected_s}]}}`. 공통으로 `next:<seq>, messages:[{seq, ms, dir:"tx"\|"rx", topic, payload, size, retain?, failed?}]` — 링버퍼 50개, 페이로드는 159바이트까지 잘라 보관(`size`는 원래 길이). Node는 자신이 발행/구독한 메시지만, Broker는 버스 전체를 본다 |
 | GET | `/api/system/scan` | | WiFi 스캔 `[{ssid,rssi,secure}]` (비동기, 진행 중이면 `202`) |
 
 ## 3. 설정
@@ -55,6 +56,10 @@
 페이지 최상단에 "동작 모드" 드롭다운 + 적용 버튼. `GET /api/system/modes`로 목록을 그리고
 `POST /api/system/mode`로 전환한다. 브로커 모드에서는 슬롯 카드 대신 브로커 카드(수신 포트,
 접속 클라이언트 수, 보관 중 retained, 메시지·재생·거부·누락 카운터)를 보여준다.
+
+### 6.0.1 MQTT 실시간 · 연결 설정 (구현됨)
+- **MQTT 실시간** 카드: `GET /api/mqtt`를 1초 주기로 폴링. Node는 연결 상태·브로커 주소(찾은 경로)·마지막 오류 코드·발행/실패/수신 수, Broker는 수신 상태·접속 클라이언트 목록·카운터를 보여준다. 아래에 메시지 흐름(최근 200개, 토픽 필터, 일시정지).
+- **연결 설정** 카드: `GET /api/config`로 채우고 섹션별로 `PUT /api/config`(부분 JSON)로 저장한다. Wi-Fi(라우터 SSID/비밀번호, 2순위·폴백 AP, 설정용 AP 비밀번호), Node면 MQTT 브로커 접속(mDNS 이름, 수동 주소, 포트, 계정, 토픽 접두, Discovery), Broker면 내장 브로커(포트, 계정, 최대 클라이언트). 비밀번호 칸은 `********`로 채워지며 그대로 두면 기존 값 유지.
 
 ### 6.1 Dashboard
 - 상단 바: 장치 이름, IP, WiFi RSSI, MQTT 상태(색), 업타임.

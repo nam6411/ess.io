@@ -12,6 +12,7 @@
 #include "core/IoManager.h"
 #include "core/Logger.h"
 #include "core/MqttManager.h"
+#include "core/MqttMonitor.h"
 #include "core/NetManager.h"
 #include "core/Scheduler.h"
 #include "core/SysInfo.h"
@@ -140,6 +141,7 @@ void setup() {
     Serial.begin(115200);
     delay(100);
     logger.begin(LogLevel::Info);
+    mqttMonitor.begin();
     LOG_I("ess.io2 %s starting, device %s", FW_VERSION, deviceId().c_str());
 
     configStore.begin();

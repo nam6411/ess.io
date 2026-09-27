@@ -1,6 +1,7 @@
 #include "BrokerService.h"
 
 #include "Logger.h"
+#include "MqttMonitor.h"
 
 namespace essio {
 
@@ -37,10 +38,12 @@ PicoMQTT::ConnectReturnCode EssioBroker::auth(const char* client_id, const char*
 
 void EssioBroker::on_connected(const char* client_id) {
     LOG_I("broker: '%s' connected (%u clients)", client_id, (unsigned)clients.size());
+    mqttMonitor.clientConnected(client_id);
 }
 
 void EssioBroker::on_disconnected(const char* client_id) {
     LOG_I("broker: '%s' disconnected (%u clients)", client_id, (unsigned)clients.size());
+    mqttMonitor.clientDisconnected(client_id);
 }
 
 // 구독이 걸리면 그 패턴에 맞는 retained 값을 다시 흘려보낸다.
@@ -89,25 +92,30 @@ void BrokerService::begin(ConfigStore& store) {
     port_ = b.port;
     broker_ = new EssioBroker(b.port, b.username, b.password, b.maxClients, b.retainSlots);
 
-    // retain 보관용 단일 구독. fire_message_callbacks는 첫 일치 콜백만 부르므로
-    // 여기서 "#" 하나만 걸고 내부에서 분기한다. 읽은 바이트는 구독자에게 그대로 전달된다.
+    // retain 보관 + 웹 실시간 뷰(MqttMonitor)용 단일 구독. fire_message_callbacks는 첫 일치 콜백만
+    // 부르므로 여기서 "#" 하나만 걸고 내부에서 분기한다. 읽은 바이트와 남은 바이트 모두
+    // 구독자에게 그대로 전달된다(IncomingPublish 소멸자가 나머지를 흘려보냄).
     broker_->subscribe("#", [this](char* topic, PicoMQTT::IncomingPacket& packet) {
         broker_->countMessage();
-        if (!(packet.get_flags() & 0x01)) return;  // retain 아님 → 보관 대상 아님
+        const bool retain = packet.get_flags() & 0x01;
 
         size_t len = packet.get_remaining_size();
-        if (len > EssioBroker::MAX_RETAINED_PAYLOAD) {
-            broker_->captureRetained(topic, nullptr, len);  // 크기 초과 기록만
-            return;
-        }
+        const size_t want = retain ? min(len, EssioBroker::MAX_RETAINED_PAYLOAD) : min(len, MqttMonitor::PAYLOAD_LEN - 1);
         char buf[EssioBroker::MAX_RETAINED_PAYLOAD + 1];
         size_t got = 0;
-        while (got < len) {
-            int r = packet.read((uint8_t*)buf + got, len - got);
+        while (got < want) {
+            int r = packet.read((uint8_t*)buf + got, want - got);
             if (r <= 0) break;
             got += r;
         }
         buf[got] = '\0';
+        mqttMonitor.record(MqttDir::Rx, topic, buf, len, retain);
+
+        if (!retain) return;  // retain 아님 → 보관 대상 아님
+        if (len > EssioBroker::MAX_RETAINED_PAYLOAD) {
+            broker_->captureRetained(topic, nullptr, len);  // 크기 초과 기록만
+            return;
+        }
         broker_->captureRetained(topic, buf, got);
     });
 
@@ -118,6 +126,7 @@ void BrokerService::begin(ConfigStore& store) {
 
 void BrokerService::end() {
     if (!broker_) return;
+    mqttMonitor.clearClients();
     broker_->stop();
     delete broker_;
     broker_ = nullptr;
@@ -130,6 +139,7 @@ void BrokerService::tick() {
 bool BrokerService::publish(const String& topic, const String& payload, bool retain) {
     if (!broker_) return false;
     if (retain) broker_->captureRetained(topic.c_str(), payload.c_str(), payload.length());
+    mqttMonitor.record(MqttDir::Tx, topic.c_str(), payload.c_str(), payload.length(), retain);
     return broker_->publish(topic.c_str(), (const void*)payload.c_str(), payload.length(), (uint8_t)0, retain);
 }
 

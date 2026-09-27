@@ -4,6 +4,7 @@
 #include <Preferences.h>
 
 #include "Logger.h"
+#include "MqttMonitor.h"
 
 namespace essio {
 
@@ -155,6 +156,7 @@ bool MqttManager::publish(const String& topic, const String& payload, bool retai
         return false;
     }
     bool ok = client_.publish(topic.c_str(), (const uint8_t*)payload.c_str(), payload.length(), retain);
+    mqttMonitor.record(MqttDir::Tx, topic.c_str(), payload.c_str(), payload.length(), retain, ok);
     if (ok) publishCount_++;
     else {
         publishFailCount_++;
@@ -184,6 +186,7 @@ void MqttManager::onRawMessage(char* topic, uint8_t* payload, unsigned int lengt
     p.reserve(length);
     for (unsigned int i = 0; i < length; i++) p += (char)payload[i];
     LOG_D("mqtt: rx %s = %s", t.c_str(), p.c_str());
+    mqttMonitor.record(MqttDir::Rx, topic, p.c_str(), length, false);
     if (onMessage_) onMessage_(t, p);
 }
 

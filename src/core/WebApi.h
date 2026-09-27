@@ -39,6 +39,7 @@ private:
     void handleConfigPut(AsyncWebServerRequest* req, JsonVariant& json);
     void handleSchema(AsyncWebServerRequest* req);
     void handleLog(AsyncWebServerRequest* req);
+    void handleMqtt(AsyncWebServerRequest* req);
     void handleSwitch(AsyncWebServerRequest* req, JsonVariant& json);
     void handleModes(AsyncWebServerRequest* req);
     void handleModeSet(AsyncWebServerRequest* req, JsonVariant& json);

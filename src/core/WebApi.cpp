@@ -5,6 +5,7 @@
 
 #include "../modules/ModuleRegistry.h"
 #include "Logger.h"
+#include "MqttMonitor.h"
 #include "SysInfo.h"
 
 namespace essio {
@@ -57,6 +58,7 @@ void WebApi::setupRoutes() {
 
     server_.on("/api/system/info", HTTP_GET, [this](AsyncWebServerRequest* req) { handleSystemInfo(req); });
     server_.on("/api/system/log", HTTP_GET, [this](AsyncWebServerRequest* req) { handleLog(req); });
+    server_.on("/api/mqtt", HTTP_GET, [this](AsyncWebServerRequest* req) { handleMqtt(req); });
     server_.on("/api/system/restart", HTTP_POST, [this](AsyncWebServerRequest* req) { queueAction(req, PendingAction::Restart); });
     server_.on("/api/system/rediscover", HTTP_POST, [this](AsyncWebServerRequest* req) { queueAction(req, PendingAction::Rediscover); });
     server_.on("/api/system/legacy_cleanup", HTTP_POST, [this](AsyncWebServerRequest* req) { queueAction(req, PendingAction::LegacyCleanup); });
@@ -228,6 +230,36 @@ void WebApi::handleLog(AsyncWebServerRequest* req) {
     uint32_t since = req->hasParam("since") ? req->getParam("since")->value().toInt() : 0;
     JsonDocument doc;
     logger.toJson(doc, since);
+    sendJson(req, doc);
+}
+
+// 웹 UI 실시간 MQTT 뷰: 연결 상태 + since 이후 메시지 (docs/13-web-api.md)
+void WebApi::handleMqtt(AsyncWebServerRequest* req) {
+    if (!authorized(req)) return;
+    uint32_t since = req->hasParam("since") ? req->getParam("since")->value().toInt() : 0;
+    JsonDocument doc;
+    doc["role"] = ConfigStore::roleName(store_->role());
+    if (store_->isBroker()) {
+        JsonObject b = doc["broker"].to<JsonObject>();
+        broker_->statusJson(b);
+        mqttMonitor.clientsJson(b["client_list"].to<JsonArray>());
+    } else {
+        const auto& m = store_->get().mqtt;
+        JsonObject c = doc["client"].to<JsonObject>();
+        c["state"] = mqtt_->stateName();
+        c["broker"] = mqtt_->brokerAddress();
+        c["port"] = m.port;
+        c["address_source"] = mqtt_->addressSource();
+        c["mdns_name"] = m.mdnsName;
+        c["client_id"] = mqtt_->clientId();
+        c["base_topic"] = mqtt_->baseTopic();
+        c["last_rc"] = mqtt_->lastRc();
+        if (mqtt_->state() == MqttState::Connected) c["connected_s"] = (millis() - mqtt_->connectedSinceMs()) / 1000;
+        c["published"] = mqtt_->publishCount();
+        c["failed"] = mqtt_->publishFailCount();
+        c["received"] = mqttMonitor.received();
+    }
+    mqttMonitor.messagesJson(doc, since);
     sendJson(req, doc);
 }
 
