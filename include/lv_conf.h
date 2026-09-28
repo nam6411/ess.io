@@ -6,8 +6,8 @@
 
 #define LV_COLOR_DEPTH 16
 
-// 메모리는 C 라이브러리 malloc을 쓴다 (큰 할당은 PSRAM으로 간다)
-#define LV_USE_STDLIB_MALLOC LV_STDLIB_CLIB
+// 메모리는 PSRAM에서 할당한다 (src/display/LvglMem.cpp) — 내부 RAM은 Wi-Fi·TCP 몫으로 남긴다
+#define LV_USE_STDLIB_MALLOC LV_STDLIB_CUSTOM
 #define LV_USE_STDLIB_STRING LV_STDLIB_CLIB
 #define LV_USE_STDLIB_SPRINTF LV_STDLIB_CLIB
 

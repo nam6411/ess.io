@@ -162,7 +162,7 @@ void ConfigStore::setDefaults() {
     s.enabled = true;
     s.type = "upower";
     s.slug = "upower";
-    s.label = "UPower";
+    s.label = "Inverter";
     s.port = 0;
     s.slaveId = 10;
     s.pollIntervalMs = 5000;
@@ -292,6 +292,8 @@ void ConfigStore::toJson(JsonDocument& doc, bool maskSecrets) const {
     disp["dim_after_s"] = cfg_.display.dimAfterS;
     disp["dim_brightness"] = cfg_.display.dimBrightness;
     disp["topic_root"] = cfg_.display.topicRoot;
+    JsonArray sc = disp["shortcuts"].to<JsonArray>();
+    for (uint8_t i = 0; i < cfg_.display.shortcutCount; i++) sc.add(cfg_.display.shortcuts[i]);
 
     JsonObject auth = doc["web"]["auth"].to<JsonObject>();
     auth["enabled"] = cfg_.webAuth.enabled;
@@ -453,6 +455,17 @@ bool ConfigStore::parseInto(Config& c, JsonVariantConst src, String& error) cons
         c.display.dimAfterS = getNum<uint16_t>(disp["dim_after_s"], c.display.dimAfterS);
         c.display.dimBrightness = getNum<uint8_t>(disp["dim_brightness"], c.display.dimBrightness);
         c.display.topicRoot = getStr(disp["topic_root"], c.display.topicRoot);
+        JsonVariantConst sc = disp["shortcuts"];
+        if (!sc.isNull()) {
+            if (!sc.is<JsonArrayConst>() || sc.size() > MAX_SHORTCUTS) { error = "display.shortcuts must be an array of up to 6 names"; return false; }
+            c.display.shortcutCount = 0;
+            for (JsonVariantConst v : sc.as<JsonArrayConst>()) {
+                String name = v.as<String>();
+                name.trim();
+                if (!name.length() || name.length() > 16) { error = "display.shortcuts: names must be 1..16 chars"; return false; }
+                c.display.shortcuts[c.display.shortcutCount++] = name;
+            }
+        }
         bool known = false;
         for (const char* p : DISPLAY_PANELS) known |= c.display.panel == p;
         if (!known) { error = "display.panel unknown"; return false; }

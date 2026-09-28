@@ -20,7 +20,7 @@
 | POST | `/api/system/rediscover` | | Discovery 전체 재발행 |
 | POST | `/api/system/legacy_cleanup` | | 레거시 config 토픽 삭제 발행 (1회) |
 | GET | `/api/system/log?since=<seq>` | | `{next:<seq>, lines:[{seq,ms,level,msg}]}` 링버퍼 200줄 |
-| GET | `/api/mqtt?since=<seq>` | | 실시간 MQTT 뷰. Node: `{role, client:{state, broker, port, address_source, mdns_name, client_id, base_topic, last_rc, connected_s, published, failed, received}}` / Broker: `{role, broker:{…/api/system/info의 broker, client_list:[{id, connected_s}]}}`. 공통으로 `next:<seq>, messages:[{seq, ms, dir:"tx"\|"rx", topic, payload, size, retain?, failed?}]` — 링버퍼 50개, 페이로드는 159바이트까지 잘라 보관(`size`는 원래 길이). Node는 자신이 발행/구독한 메시지만, Broker는 버스 전체를 본다 |
+| GET | `/api/mqtt?since=<seq>` | | 실시간 MQTT 뷰. Node: `{role, client:{state, broker, port, address_source, mdns_name, client_id, base_topic, last_rc, connected_s, published, failed, received}}` / Broker: `{role, broker:{…/api/system/info의 broker, client_list:[{id, connected_s}]}}`. 공통으로 `next:<seq>, messages:[{seq, ms, dir:"tx"\|"rx", topic, payload, size, retain?, failed?}]` — 링버퍼 50개, 페이로드는 159바이트까지 잘라 보관(`size`는 원래 길이). 한 응답에 최대 15개, 더 있으면 `more:true` — `next`부터 다시 요청한다. Node는 자신이 발행/구독한 메시지만, Broker는 버스 전체를 본다 |
 | GET | `/api/system/scan` | | WiFi 스캔 `[{ssid,rssi,secure}]` (비동기, 진행 중이면 `202`) |
 
 ## 3. 설정

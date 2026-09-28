@@ -25,6 +25,9 @@ struct DisplayMetric {
     String path;  // state JSON 안의 점 경로 (예: "pv.in_w")
 };
 
+// 테두리 그래프 종류 (meta.ring). Soc는 ring이 없고 대표값이 %일 때의 대체 표시
+enum class RingStyle : uint8_t { None, Soc, Battery, Flows };
+
 struct DisplayDevice {
     static constexpr uint8_t MAX_SWITCHES = 8;
     static constexpr uint8_t MAX_METRICS = 5;
@@ -39,6 +42,9 @@ struct DisplayDevice {
     uint8_t switchCount = 0;
     DisplayMetric metrics[MAX_METRICS];
     uint8_t metricCount = 0;
+    RingStyle ring = RingStyle::None;
+    String ringPath[3];
+    uint8_t ringCount = 0;
     uint32_t updatedMs = 0;
 
     // 화면 갱신 표시. layoutDirty = 스위치·지표 구성이 바뀜(다시 그려야 함), valueDirty = 값만 바뀜
@@ -47,6 +53,7 @@ struct DisplayDevice {
 
     // 지표 i의 현재 값 (없으면 false)
     bool metricValue(uint8_t i, float& out) const;
+    bool valueAt(const String& path, float& out) const;  // state JSON 점 경로 값
     int switchIndex(const String& name) const;
 };
 

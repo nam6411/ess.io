@@ -18,6 +18,8 @@ public:
     void begin();
 
     void record(MqttDir dir, const char* topic, const char* payload, size_t len, bool retain, bool ok = true);
+    // since 이후 메시지를 오래된 것부터 최대 PAGE_MAX개. 더 있으면 doc["more"] = true (다음 요청은 next부터)
+    static constexpr size_t PAGE_MAX = 15;
     void messagesJson(JsonDocument& doc, uint32_t sinceSeq) const;
 
     // Broker 역할: 접속 중인 클라이언트 목록

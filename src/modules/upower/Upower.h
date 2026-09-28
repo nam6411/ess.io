@@ -26,7 +26,8 @@ public:
 
     size_t sensorCount() const override;
     const SensorDef* sensorDef(size_t i) const override;
-    const char* keySensors() const override { return "bat_soc,pv_in_w,inv_out_w,grid_in_w,bat_v"; }
+    const char* keySensors() const override { return "bat_soc,pv_chg_w,grid_in_w,inv_out_w,bat_v"; }
+    const char* displayRing() const override { return "flows:pv.chg_w,grid.in_w,inv.out_w"; }
 
 private:
     // 폴링 단계: 코일 4개 → 레지스터 블록 A~D (docs/03 §3, §4)

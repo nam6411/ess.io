@@ -186,7 +186,11 @@ void MqttManager::tick() {
     if (!wifiReady_ || !wifiReady_()) return;
 
     if (client_.connected()) {
-        client_.loop();
+        // PubSubClient::loop()는 한 번에 패킷 하나만 읽는다. 루프가 느린 역할(디스플레이 그리기)에서도
+        // 밀리지 않게 쌓인 것을 한 번에 비운다(상한을 둬 다른 일을 굶기지 않는다).
+        uint8_t n = 0;
+        do client_.loop();
+        while (client_.connected() && net_.available() && ++n < 20);
         return;
     }
     pollBeacon();

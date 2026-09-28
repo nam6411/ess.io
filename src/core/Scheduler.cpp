@@ -225,6 +225,7 @@ void Scheduler::publishMeta(Slot& s) {
     JsonDocument doc;
     doc["type"] = s.type;
     doc["label"] = s.label.length() ? s.label : s.slug;
+    if (*s.module->displayRing()) doc["ring"] = s.module->displayRing();
     JsonArray sw = doc["switches"].to<JsonArray>();
     for (size_t i = 0; i < s.module->switchCount(); i++) {
         const SwitchDef* d = s.module->switchDef(i);

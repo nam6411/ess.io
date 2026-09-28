@@ -93,6 +93,10 @@ PicoMQTT는 retain 플래그를 전달하기만 하고 **보관하지 않는다.
 | 빌드 | `esp32s3` env만 `-DESSIO_DISPLAY=1`로 LVGL 9.1 + Arduino_GFX 1.6.7을 넣는다. `esp32dev` 빌드에서는 모드 목록에 `supported:false`로 나오고 고를 수 없다 |
 | Wi-Fi·MQTT | Node와 같다(라우터 → 브로커 AP → 설정용 AP). MQTT 클라이언트로 브로커에 접속, base topic `rv/display-<id>` |
 | 구독 | `<root>/+/{meta,state,availability}`, `<root>/+/switch/+/state` 와 슬롯 2개 이상 노드용 `<root>/+/+/…`. `<root>` = `display.topic_root`(기본 `rv`) |
+| 페이지 | 홈 → BMS → 인버터 → 스위치 → 기타. 장치가 도착한 순서와 무관하게 meta의 `type`으로 정렬한다 |
+| 홈 화면 | 제목 573PT, Wi-Fi·MQTT 상태, 배터리 요약(BMS의 SOC와 충·방전 W — 인버터와 같은 배터리라 장치 이름 없이), 바로가기 스위치 3×2(`display.shortcuts`, 기본 Inverter·Mover·Pump·Lights·Drain·Fill). 바로가기는 표시명 또는 토픽 이름이 같은 스위치(대소문자 무시)를 모든 장치에서 찾아 묶고, 없거나 장치가 오프라인이면 비활성. 테두리는 BMS와 같은 배터리 링 |
+| 테두리 그래프 | 5°마다 점 하나로 그린다(`lv_arc`는 지름 460px에서 프레임당 1초 넘게 걸려 워치독이 걸렸다). meta `ring`으로 종류를 정한다 — `battery:<soc>,<전력>`: 왼쪽 반원 SOC(청록, 아래→위), 오른쪽 반원 충·방전량(보라, 3시에서 충전은 아래로·방전은 위로, ±3kW에서 가득). `flows:<a>,<b>,<c>`: 왼쪽 태양광(노랑)·오른쪽 위 그리드(파랑)·아래 인버터 출력(주황), 각 3kW에서 가득. 해당 값 글자도 같은 색 |
+| 스위치 확인 | 모든 스위치 버튼(바로가기 포함)은 누르면 "Turn ON? / Turn OFF?" 확인 창을 띄우고 ON/OFF를 눌러야 명령을 보낸다. 노브를 누르거나 돌리면 취소, 10초 뒤 저절로 닫힌다 |
 | 조작 | 노브 돌림 = 페이지 이동(홈 ↔ 장치별), 노브 누름 = 홈. 스와이프도 된다. 스위치 버튼 터치 → `<prefix>/switch/<name>/set` 에 `ON`/`OFF` 발행. 버튼 색은 노드가 다시 보내는 상태 토픽으로만 바뀐다 |
 | 화면 끄기 | `display.dim_after_s`(기본 60초) 동안 입력이 없으면 `dim_brightness`로 어둡게. 어두운 상태의 첫 터치·노브는 깨우기만 하고 버튼을 누르지 않는다 |
 | 장치 폴링 | 없음. 이 보드는 GPIO 대부분을 패널이 쓰므로 슬롯·포트를 만들지 않는다 |
@@ -103,13 +107,16 @@ PicoMQTT는 retain 플래그를 전달하기만 하고 **보관하지 않는다.
 드라이버를 새로 추가해도 디스플레이 코드는 고칠 필요가 없다.
 
 ```json
-{"type":"jbdbms","label":"JBD BMS",
+{"type":"jbdbms","label":"BMS","ring":"battery:soc,power",
  "switches":[{"n":"charge_fet","l":"Charge MOSFET"}, …],
  "metrics":[{"l":"SOC","u":"%","p":"soc"},{"l":"Power","u":"W","p":"power"}, …]}
 ```
 - `metrics`는 드라이버의 `keySensors()`(쉼표 구분 센서 키) 순서. 첫 번째가 대표값이고, 단위가 `%`면 화면 테두리 링으로도 보인다.
 - `p`는 state JSON 안의 점 경로. meta가 없는 노드(구버전)는 state 최상위 숫자 값과 스위치 상태 토픽으로 대신 그린다.
+- `ring`은 드라이버의 `displayRing()` (UPower `flows:pv.chg_w,grid.in_w,inv.out_w`, JBD `battery:soc,power`). 없으면 대표값이 %일 때 한 줄 링만 그린다.
 - 브로커는 `+/+/meta`, `+/+/+/meta`를 retained로 보관한다.
+- 메모리: LVGL 객체는 PSRAM(`src/display/LvglMem.cpp`), 그리기 버퍼 2장(20줄)은 내부 RAM. 내부 RAM이 30KB대로 떨어지면 TCP 송신이 실패해 MQTT가 끊겼다. 프레임이 150ms를 넘으면 `display: frame took …` 경고가 남는다.
+- 시험: `tools/mqtt_sim.py`가 BMS·인버터·릴레이 가짜 노드를 발행하고 스위치 명령에 응답한다.
 
 ### 3.4 MACH (더미)
 프로토콜이 확인되지 않아 **수동 스니퍼**로만 동작한다. 요청을 보내지 않고 수신 바이트를 20ms 공백 기준으로

@@ -369,7 +369,9 @@ async function loadSettings() {
         <label class="wide">밝기 <span id="d_bv">${d.brightness}%</span><input type="range" id="d_bright" min="5" max="100" value="${d.brightness}" oninput="$('#d_bv').textContent=this.value+'%'"></label>
         ${field('d_dim', '입력 없으면 어둡게 (초, 0=안 함)', d.dim_after_s, 'number')}
         ${field('d_dimb', '어둡게 할 때 밝기 (%)', d.dim_brightness, 'number')}
+        ${field('d_sc', '홈 화면 바로가기 (쉼표 구분, 최대 6개)', (d.shortcuts || []).join(', '), 'text', ' class="wide"')}
       </div>
+      <div class="hint">바로가기는 이름이 같은 스위치(대소문자 무시)를 모든 장치에서 찾아 연결합니다. 릴레이 채널 이름을 여기에 맞춰 두세요. 화면 글꼴이 영문만 지원합니다.</div>
       <div class="actions"><button class="primary" onclick="saveDisplay()">디스플레이 저장</button><span class="msg" id="displayMsg"></span></div>
       <div class="hint">패널: ${esc(PANELS[d.panel] || d.panel)} · 토픽 루트 <code>${esc(d.topic_root)}</code>. 패널을 바꾸려면 동작 모드에서 디스플레이를 다시 고르세요.</div>`;
   }
@@ -428,7 +430,8 @@ function saveMqtt() {
 
 function saveDisplay() {
   saveSection('displayMsg', { display: {
-    brightness: num('d_bright'), dim_after_s: num('d_dim'), dim_brightness: num('d_dimb') } });
+    brightness: num('d_bright'), dim_after_s: num('d_dim'), dim_brightness: num('d_dimb'),
+    shortcuts: val('d_sc').split(',').map(x => x.trim()).filter(Boolean) } });
 }
 
 function saveBroker() {

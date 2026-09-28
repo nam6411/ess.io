@@ -25,6 +25,7 @@ public:
     size_t sensorCount() const override;
     const SensorDef* sensorDef(size_t i) const override;
     const char* keySensors() const override { return "soc,power,pack_v,current,cell_diff"; }
+    const char* displayRing() const override { return "battery:soc,power"; }
 
 private:
     enum Step : uint8_t { STEP_BASIC = 0, STEP_CELLS, STEP_COUNT };

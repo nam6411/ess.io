@@ -49,6 +49,9 @@ public:
     virtual const SensorDef* sensorDef(size_t) const { return nullptr; }
     // 디스플레이가 먼저 보여줄 센서 키 (쉼표 구분, 첫 번째가 대표값). <prefix>/meta로 발행된다.
     virtual const char* keySensors() const { return ""; }
+    // 디스플레이 테두리 그래프 (meta.ring). "battery:<soc 경로>,<전력 경로>" = SOC + 충·방전량,
+    // "flows:<경로>,<경로>,<경로>" = 전력 흐름 3색. 빈 문자열이면 그리지 않는다.
+    virtual const char* displayRing() const { return ""; }
 
     int switchIndex(const char* name) const {
         for (size_t i = 0; i < switchCount(); i++) {

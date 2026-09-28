@@ -19,6 +19,7 @@ constexpr uint8_t BACKLIGHT = 6;
 constexpr uint32_t BUTTON_DEBOUNCE_MS = 30, BUTTON_POLL_MS = 10;
 
 CrowPanel21* self = nullptr;
+uint32_t flushUs = 0, flushPx = 0, flushCalls = 0;
 Adafruit_CST8XX touch;
 
 Arduino_DataBus* initBus = new Arduino_SWSPI(GFX_NOT_DEFINED /* DC: 9-bit SPI */, 16 /* CS */, 2 /* SCK */,
@@ -98,12 +99,13 @@ bool CrowPanel21::begin() {
 
     lv_init();
     lv_tick_set_cb([]() -> uint32_t { return millis(); });
-    // 부분 갱신용 버퍼 2장(각 1/4 화면)을 PSRAM에 둔다
-    const size_t bufBytes = WIDTH * HEIGHT / 4 * sizeof(uint16_t);
-    void* buf1 = heap_caps_malloc(bufBytes, MALLOC_CAP_SPIRAM);
-    void* buf2 = heap_caps_malloc(bufBytes, MALLOC_CAP_SPIRAM);
+    // 부분 갱신용 버퍼 2장(각 20줄, 합 38KB)을 내부 RAM에 둔다 — PSRAM보다 그리기가 빠르다.
+    // 객체·스타일은 PSRAM(LvglMem.cpp)에 두어 내부 RAM은 이 버퍼와 Wi-Fi·TCP 몫으로 남긴다.
+    const size_t bufBytes = WIDTH * 20 * sizeof(uint16_t);
+    void* buf1 = heap_caps_malloc(bufBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+    void* buf2 = heap_caps_malloc(bufBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
     if (!buf1 || !buf2) {
-        LOG_E("display: PSRAM draw buffer allocation failed");
+        LOG_E("display: draw buffer allocation failed");
         return false;
     }
     lv_display_t* disp = lv_display_create(WIDTH, HEIGHT);
@@ -128,7 +130,15 @@ void CrowPanel21::setBrightness(uint8_t percent) {
 }
 
 // 이 보드의 ST7701 결선은 RGB565의 R/B 필드가 뒤바뀌어 보인다(공식 예제와 같은 처리)
+void CrowPanel21::takeFlushStats(uint32_t& us, uint32_t& px, uint32_t& calls) {
+    us = flushUs;
+    px = flushPx;
+    calls = flushCalls;
+    flushUs = flushPx = flushCalls = 0;
+}
+
 void CrowPanel21::flush(lv_display_t* disp, const lv_area_t* area, uint8_t* px) {
+    const uint32_t t0 = micros();
     const uint32_t w = area->x2 - area->x1 + 1;
     const uint32_t h = area->y2 - area->y1 + 1;
     uint16_t* p = (uint16_t*)px;
@@ -137,6 +147,9 @@ void CrowPanel21::flush(lv_display_t* disp, const lv_area_t* area, uint8_t* px) 
         p[i] = (c & 0x07E0) | ((c & 0x001F) << 11) | ((c & 0xF800) >> 11);
     }
     gfx->draw16bitRGBBitmap(area->x1, area->y1, p, w, h);
+    flushUs += micros() - t0;
+    flushPx += w * h;
+    flushCalls++;
     lv_display_flush_ready(disp);
 }
 

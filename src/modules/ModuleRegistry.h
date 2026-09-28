@@ -8,7 +8,8 @@ class IDeviceModule;
 
 struct ModuleTypeInfo {
     const char* type;
-    const char* label;
+    const char* label;    // 모드 선택 목록에 보이는 이름
+    const char* title;    // 슬롯 label 기본값 = 디스플레이·HA에 보이는 짧은 이름
     uint8_t maxChannels;  // rtusw 계열만 의미 있음, 그 외 0
     const char* slug;     // 기본 토픽 이름 (rv/<slug>/...) — 설계서 §11.2
     uint8_t slaveId;      // 기본 슬레이브 주소

@@ -26,6 +26,8 @@ public:
     bool takeClick();
     // 마지막 터치 시각 (화면 끄기 판단용)
     uint32_t lastTouchMs() const { return lastTouchMs_; }
+    // 진단: 누적 flush 시간(µs)·픽셀·호출 수를 돌려주고 0으로 되돌린다
+    static void takeFlushStats(uint32_t& us, uint32_t& px, uint32_t& calls);
     // true면 다음 터치 한 번은 LVGL에 전달하지 않는다(어두운 화면을 깨우는 터치가 버튼을 누르지 않게)
     void swallowNextTouch() { swallow_ = true; }
 

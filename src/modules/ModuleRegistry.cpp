@@ -12,12 +12,12 @@ namespace essio {
 namespace {
 // 기본값 출처: docs/03(UP5000 Slave 10 / 115200), docs/04(JBD 9600), docs/05·06(RTU 9600), 설계서 §11.2
 const ModuleTypeInfo TYPES[] = {
-    {"upower", "UP5000 (Modbus RTU)", 0, "upower", 10, 115200, 5000},
-    {"jbdbms", "JBD BMS", 0, "bms", 0, 9600, 5000},
-    {"rtusw_mk1", "RTU 스위치 Mk1 (Coil)", 8, "rtu", 255, 9600, 3000},
-    {"rtusw_mk2", "RTU 스위치 Mk2 (Register)", 4, "rtu", 1, 9600, 3000},
+    {"upower", "UP5000 (Modbus RTU)", "Inverter", 0, "upower", 10, 115200, 5000},
+    {"jbdbms", "JBD BMS", "BMS", 0, "bms", 0, 9600, 5000},
+    {"rtusw_mk1", "RTU 스위치 Mk1 (Coil)", "Switch", 8, "rtu", 255, 9600, 3000},
+    {"rtusw_mk2", "RTU 스위치 Mk2 (Register)", "Switch", 4, "rtu", 1, 9600, 3000},
     // 프로토콜 미확인 — 수신 바이트만 기록하는 더미. 보레이트는 스니핑하며 맞춘다.
-    {"mach", "MACH BMS (미구현·스니핑)", 0, "mach", 0, 9600, 1000},
+    {"mach", "MACH BMS (미구현·스니핑)", "BMS", 0, "mach", 0, 9600, 1000},
 };
 }
 

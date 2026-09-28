@@ -78,6 +78,7 @@ constexpr uint32_t BROKER_BEACON_INTERVAL_MS = 5000;
 
 // 디스플레이 역할이 지원하는 패널 보드 (DisplayService가 이 id로 드라이버를 고른다)
 constexpr const char* DISPLAY_PANELS[] = {"crowpanel_2_1"};
+constexpr uint8_t MAX_SHORTCUTS = 6;  // 디스플레이 홈 화면 바로가기 스위치 수
 
 struct Config {
     struct {
@@ -138,6 +139,9 @@ struct Config {
         uint16_t dimAfterS = 60;     // 입력이 없으면 이 시간 뒤 어둡게. 0 = 끄지 않음
         uint8_t dimBrightness = 10;  // 어둡게 할 때 밝기 %
         String topicRoot = "rv";     // rv/<node>/... 를 구독
+        // 홈 화면 바로가기: 이 이름과 같은 스위치(표시명 또는 토픽 이름, 대소문자 무시)를 장치 전체에서 찾아 묶는다
+        String shortcuts[MAX_SHORTCUTS] = {"Inverter", "Mover", "Pump", "Lights", "Drain", "Fill"};
+        uint8_t shortcutCount = 6;
     } display;
 
     struct {

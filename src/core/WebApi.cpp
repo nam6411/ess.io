@@ -187,7 +187,7 @@ void WebApi::handleModeSet(AsyncWebServerRequest* req, JsonVariant& json) {
         s["enabled"] = true;
         s["type"] = info->type;
         s["slug"] = info->slug;
-        s["label"] = info->label;
+        s["label"] = info->title;
         s["port"] = 0;
         s["slave_id"] = info->slaveId;
         s["poll_interval_ms"] = info->pollMs;

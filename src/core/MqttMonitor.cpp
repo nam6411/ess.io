@@ -32,9 +32,16 @@ void MqttMonitor::messagesJson(JsonDocument& doc, uint32_t sinceSeq) const {
     uint32_t next = sinceSeq;
     if (mutex_ && xSemaphoreTake(mutex_, pdMS_TO_TICKS(50)) == pdTRUE) {
         size_t start = (head_ + CAPACITY - count_) % CAPACITY;
+        // 한 응답을 작게 유지한다: 50개 전부(≈15KB)를 한 번에 만들면 디스플레이처럼 내부 RAM이 빠듯한
+        // 보드에서 응답이 끝나지 않았다. 웹 UI는 1초마다 next부터 다시 요청하므로 금방 따라잡는다.
+        size_t added = 0;
         for (size_t i = 0; i < count_; i++) {
             const Entry& e = entries_[(start + i) % CAPACITY];
             if (e.seq <= sinceSeq) continue;
+            if (added++ == PAGE_MAX) {
+                doc["more"] = true;
+                break;
+            }
             JsonObject o = msgs.add<JsonObject>();
             o["seq"] = e.seq;
             o["ms"] = e.ms;

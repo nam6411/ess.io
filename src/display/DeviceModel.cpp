@@ -26,8 +26,11 @@ bool endsWith(const String& s, const char* suffix, String& head) {
 }  // namespace
 
 bool DisplayDevice::metricValue(uint8_t i, float& out) const {
-    if (i >= metricCount) return false;
-    JsonVariantConst v = lookup(state.as<JsonVariantConst>(), metrics[i].path);
+    return i < metricCount && valueAt(metrics[i].path, out);
+}
+
+bool DisplayDevice::valueAt(const String& path, float& out) const {
+    JsonVariantConst v = lookup(state.as<JsonVariantConst>(), path);
     if (v.is<bool>()) { out = v.as<bool>() ? 1 : 0; return true; }
     if (!v.is<float>()) return false;
     out = v.as<float>();
@@ -135,6 +138,22 @@ void DeviceModel::applyMeta(DisplayDevice& d, const String& payload) {
         s.label = o["l"] | s.name.c_str();
         for (uint8_t i = 0; i < prevCount; i++) {
             if (prev[i].name == s.name) { s.on = prev[i].on; s.known = prev[i].known; }
+        }
+    }
+    // ring: "<style>:<경로>,<경로>,..."
+    d.ring = RingStyle::None;
+    d.ringCount = 0;
+    String ring = doc["ring"] | "";
+    int colon = ring.indexOf(':');
+    if (colon > 0) {
+        String style = ring.substring(0, colon);
+        d.ring = style == "battery" ? RingStyle::Battery : style == "flows" ? RingStyle::Flows : RingStyle::None;
+        int from = colon + 1;
+        while (from < (int)ring.length() && d.ringCount < 3) {
+            int comma = ring.indexOf(',', from);
+            if (comma < 0) comma = ring.length();
+            d.ringPath[d.ringCount++] = ring.substring(from, comma);
+            from = comma + 1;
         }
     }
     d.metricCount = 0;
