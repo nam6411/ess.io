@@ -20,6 +20,7 @@
 | `jbdbms` | JBD BMS | node | 슬롯 0 = JBD, 포트 0 = 9600 |
 | `rtusw_mk1` | RTU 스위치 Mk1 (Coil) | node | 슬롯 0 = Mk1, 포트 0 = 9600, Slave 255 |
 | `rtusw_mk2` | RTU 스위치 Mk2 (Register) | node | 슬롯 0 = Mk2, 포트 0 = 9600, Slave 1 |
+| `antbms` | ANT BMS | node | 슬롯 0 = ANT, 포트 0 = 19200. 신형·구형 프로토콜 자동 감지 ([16-device-antbms.md](16-device-antbms.md)) |
 | `mach` | MACH BMS (미구현·스니핑) | node | 슬롯 0 = MACH 더미, 포트 0 = 9600. 아무것도 보내지 않고 수신 바이트만 기록 (§3.4) |
 | `display` | 디스플레이 (터치 화면) | display | 패널 기동, 모든 노드 구독. 슬롯·포트 없음 (§3.3). `supported:false`면 이 빌드에 패널 드라이버가 없음 |
 | `idle` | 유휴 (발행 안 함) | node | 슬롯 전부 비활성. 설정만 가능한 상태 |
@@ -205,5 +206,6 @@ APSTA 상시 동작을 피한다(AP·STA가 무선 칩과 채널을 공유해 �
 - 메트릭당 개별 state 토픽 전환 (설계서 §3.4)
 - 드라이버 전환 시 이전 Discovery 토픽 삭제 (`HaDiscovery::removeSlot`)
 - 폴링 3등급 + 변화 시 발행 + 30초 하트비트 (설계서 §11.3)
-- MACH 실제 프로토콜 (지금은 스니핑 더미, §3.4) / ANT BMS 드라이버
+- MACH 실제 프로토콜 (지금은 스니핑 더미, §3.4)
+- ANT BMS 실기 검증 (드라이버는 있음, docs/16)
 - 디스플레이: 다른 패널 보드 추가(`DISPLAY_PANELS`), 장치 상세 화면(셀 전압 등)

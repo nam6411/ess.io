@@ -1,6 +1,7 @@
 #include "ModuleRegistry.h"
 
 #include "IDeviceModule.h"
+#include "antbms/Antbms.h"
 #include "jbdbms/Jbdbms.h"
 #include "mach/Mach.h"
 #include "rtusw/RtuSwMk1.h"
@@ -14,6 +15,8 @@ namespace {
 const ModuleTypeInfo TYPES[] = {
     {"upower", "UP5000 (Modbus RTU)", "Inverter", 0, "upower", 10, 115200, 5000},
     {"jbdbms", "JBD BMS", "BMS", 0, "bms", 0, 9600, 5000},
+    // docs/16: 신형(7E A1)·구형(140바이트) 모두 19200. protocol=auto면 응답하는 쪽을 쓴다
+    {"antbms", "ANT BMS", "BMS", 0, "bms", 0, 19200, 5000},
     {"rtusw_mk1", "RTU 스위치 Mk1 (Coil)", "Switch", 8, "rtu", 255, 9600, 3000},
     {"rtusw_mk2", "RTU 스위치 Mk2 (Register)", "Switch", 4, "rtu", 1, 9600, 3000},
     // 프로토콜 미확인 — 수신 바이트만 기록하는 더미. 보레이트는 스니핑하며 맞춘다.
@@ -40,6 +43,7 @@ bool ModuleRegistry::isKnown(const String& type) {
 IDeviceModule* ModuleRegistry::create(const String& type) {
     if (type == "upower") return new Upower();
     if (type == "jbdbms") return new Jbdbms();
+    if (type == "antbms") return new Antbms();
     if (type == "rtusw_mk1") return new RtuSwMk1();
     if (type == "rtusw_mk2") return new RtuSwMk2();
     if (type == "mach") return new Mach();
@@ -74,6 +78,10 @@ void ModuleRegistry::defaultParams(const String& type, JsonObject out) {
         cl["enabled"] = false;
         cl["soc_high"] = 80;
         cl["soc_low"] = 70;
+    } else if (type == "antbms") {
+        out["protocol"] = "auto";      // auto | new | old
+        out["invert_current"] = false;  // 충전이 음수로 보이는 장치면 true
+        out["expose_cells"] = true;
     } else if (type == "rtusw_mk1" || type == "rtusw_mk2") {
         uint8_t n = type == "rtusw_mk1" ? 8 : 4;
         out["write_retries"] = 3;
